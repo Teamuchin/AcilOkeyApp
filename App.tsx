@@ -1,17 +1,27 @@
+import React from 'react'
 import 'react-native-url-polyfill/auto'
 import 'react-native-get-random-values'
 import { useState, useEffect } from 'react'
 import { supabase } from './lib/supabase'
 import Auth from './components/Auth'
-import { View, Text } from 'react-native'
+import Profile from './components/Profile'
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native'
 import { Session } from '@supabase/supabase-js'
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import BottomTabNavigator from './src/navigation/BottomTabNavigator';
+
+const Stack = createNativeStackNavigator();
+
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
+      setLoading(false);
     })
 
     supabase.auth.onAuthStateChange((_event, session) => {
@@ -19,10 +29,38 @@ export default function App() {
     })
   }, [])
 
+  if (loading) { // Show a loading indicator while checking session
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" />
+        <Text>Loading app...</Text>
+      </View>
+    )
+  }
+
   return (
-    <View>
-      <Auth />
-      {session && session.user && <Text>{session.user.id}</Text>}
-    </View>
+    <NavigationContainer>
+      <Stack.Navigator>
+        {session && session.user ? (
+          // User is signed in, show your main app tabs
+          <Stack.Screen
+            name="MainApp"
+            component={BottomTabNavigator}
+            options={{ headerShown: false }} // Hide header for the main app container
+          />
+        ) : (
+          // User is not signed in, show Auth screen
+          <Stack.Screen name="Auth" component={Auth} options={{ headerShown: false }} />
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
   )
 }
+
+const styles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
