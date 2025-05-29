@@ -9,9 +9,6 @@ export default function MyGamesScreen() {
   return (
     <View style={styles.container}>
       <Text>My Games Screen</Text>
-      <View style={styles.verticallySpaced}>
-        <Button title="Sign Out" onPress={() => supabase.auth.signOut()} />
-      </View>
     </View>
   );
 }

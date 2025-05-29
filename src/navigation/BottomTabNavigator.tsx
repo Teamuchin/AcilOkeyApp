@@ -2,6 +2,8 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons'; // Example icon library
+import { supabase } from '../../lib/supabase'
+
 
 // Import your screen components
 import SearchScreen from '../screens/SearchScreen';
@@ -37,8 +39,8 @@ export default function BottomTabNavigator() {
         headerShown: false, // Hide header on tab screens if you prefer custom headers
       })}
     >
-      <Tab.Screen name="MyGames" component={MyGamesScreen} />
       <Tab.Screen name="Search" component={SearchScreen} />
+      <Tab.Screen name="MyGames" component={MyGamesScreen} />
       <Tab.Screen name="Messages" component={MessagesScreen} />
     </Tab.Navigator>
   );

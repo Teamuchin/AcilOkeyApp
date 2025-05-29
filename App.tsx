@@ -10,7 +10,9 @@ import { Session } from '@supabase/supabase-js'
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import BottomTabNavigator from './src/navigation/BottomTabNavigator';
-
+import { Button } from '@rneui/themed'; // If using RNElements buttons
+import { Ionicons } from '@expo/vector-icons'; // For icons
+import DropdownButton from './components/DropdownMenu';
 const Stack = createNativeStackNavigator();
 
 
@@ -46,7 +48,29 @@ export default function App() {
           <Stack.Screen
             name="MainApp"
             component={BottomTabNavigator}
-            options={{ headerShown: false }} // Hide header for the main app container
+            options={{ 
+              title: 'Acil Okey',
+              headerStyle: {
+                backgroundColor: 'tomato',
+              },
+              headerTintColor: '#fff',
+              headerTitleStyle: {
+                fontWeight: 'bold',
+                fontFamily: 'Poppins-Bold',
+              },
+              headerRight: () => (
+                <View style={headerstyles.container}>
+                    <Button 
+                      onPress={() => alert('Test!')}
+                      icon={<Ionicons name="notifications" size={24} color="white" />}
+                      type="clear"
+                      containerStyle={headerstyles.buttonContainer}
+                      touchSoundDisabled
+                    />
+                    <DropdownButton/>
+                </View>
+              ),
+              headerShown: true }} // Hide header for the main app container
           />
         ) : (
           // User is not signed in, show Auth screen
@@ -60,6 +84,21 @@ export default function App() {
 const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+});
+
+const headerstyles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 4,
+  },
+  buttonContainer: {
+    marginHorizontal: 2,
+    minWidth: 40,
+    minHeight: 40,
     justifyContent: 'center',
     alignItems: 'center',
   },
