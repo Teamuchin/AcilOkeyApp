@@ -13,6 +13,7 @@ import BottomTabNavigator from './src/navigation/BottomTabNavigator';
 import { Button } from '@rneui/themed'; // If using RNElements buttons
 import { Ionicons } from '@expo/vector-icons'; // For icons
 import DropdownButton from './components/DropdownMenu';
+import NotificationModal from './components/NotificationModal';
 const Stack = createNativeStackNavigator();
 
 
@@ -60,13 +61,7 @@ export default function App() {
               },
               headerRight: () => (
                 <View style={headerstyles.container}>
-                    <Button 
-                      onPress={() => alert('Test!')}
-                      icon={<Ionicons name="notifications" size={24} color="white" />}
-                      type="clear"
-                      containerStyle={headerstyles.buttonContainer}
-                      touchSoundDisabled
-                    />
+                    <NotificationModal/>
                     <DropdownButton/>
                 </View>
               ),
