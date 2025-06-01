@@ -4,9 +4,13 @@ import { Icon } from '@rneui/themed';
 import { Menu, MenuItem, MenuDivider } from 'react-native-material-menu';
 import { supabase } from '../lib/supabase'
 
+// Add UserProfileModal import
+import UserProfileModal from './UserProfileModal';
 
 export default function CustomDropdownExample() {
   const [visible, setVisible] = useState(false);
+  // Add state for UserProfile modal
+  const [isUserProfileVisible, setIsUserProfileVisible] = useState(false);
 
   const showMenu = () => setVisible(true);
   const hideMenu = () => setVisible(false);
@@ -36,14 +40,23 @@ export default function CustomDropdownExample() {
         <MenuItem onPress={() => supabase.auth.signOut()}>
           <Text style={styles.menuItemText}>Log Out</Text>
         </MenuItem>
-        <MenuItem onPress={() => handleOptionPress('Option B')}>
-          <Text style={styles.menuItemText}>Option B</Text>
+        <MenuItem onPress={() => {
+          hideMenu();
+          setIsUserProfileVisible(true);
+        }}>
+          <Text style={styles.menuItemText}>Profile</Text>
         </MenuItem>
         <MenuDivider />
         <MenuItem onPress={() => handleOptionPress('Option C')}>
           <Text style={styles.menuItemText}>Option C</Text>
         </MenuItem>
       </Menu>
+
+      {/* Add UserProfileModal component */}
+      <UserProfileModal
+        visible={isUserProfileVisible}
+        onClose={() => setIsUserProfileVisible(false)}
+      />
     </View>
   );
 }
