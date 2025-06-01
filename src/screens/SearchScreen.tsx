@@ -232,6 +232,7 @@ export default function SearchScreen() {
       <ListItem.Content>
         <ListItem.Title style={styles.listItemTitle}>{user.username || 'No Username'}</ListItem.Title>
         <ListItem.Subtitle style={styles.listItemSubtitle}>
+          <Text style={styles.listItemSubtitle}>{user.full_name || 'No Name'} &middot; </Text>
           {user.online_status !== null && (
             <Text style={{ color: user.online_status ? 'green' : 'gray' }}>
               {user.online_status ? 'Online' : 'Offline'}
@@ -260,7 +261,7 @@ export default function SearchScreen() {
               <Icon
                 name="send"
                 type="material"
-                color="blue"
+                color="gray"
                 size={24}
                 onPress={handleSearch}
               />
@@ -331,13 +332,13 @@ const styles = StyleSheet.create({
     marginHorizontal: 15,
     marginVertical: 10,
     borderRadius: 8,
-    borderColor: '#007bff',
+    borderColor: 'tomato',
   },
   selectedButtonGroupButton: {
-    backgroundColor: '#007bff',
+    backgroundColor: 'tomato',
   },
   buttonGroupText: {
-    color: '#007bff',
+    color: 'tomato',
   },
   selectedButtonGroupText: {
     color: 'white',
