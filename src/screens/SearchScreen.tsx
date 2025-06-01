@@ -16,8 +16,8 @@ interface GameData {
   current_players: number; // int2
   description: string | null; // text (can be null)
   created_at: string; // timestamp
-  game_status: 'Scheduled' | 'Active' | 'Completed' | 'Cancelled'; // Your game_stat ENUM values
-  game_type: 'Beginner' | 'Intermediate' | 'Advanced' | 'Competitive'; // Your game_typ ENUM values
+  game_status: 'open' | 'in_progress' | 'completed' | 'scheduled'; // Your game_stat ENUM values
+  game_type: 'regular' | 'tournament'; // Your game_typ ENUM values
   // Note: organizer_id is a foreign key, but not directly in the games table columns you showed.
   // We'll need to select it if it's there or handle joining.
 }
