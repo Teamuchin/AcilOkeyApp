@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Alert, StyleSheet, View, AppState } from 'react-native'
+import { Alert, StyleSheet, View, AppState, Text, TouchableOpacity } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { Button, Input } from '@rneui/themed'
 
@@ -19,6 +19,7 @@ export default function Auth() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isLogin, setIsLogin] = useState(true)
 
   async function signInWithEmail() {
     setLoading(true)
@@ -48,32 +49,68 @@ export default function Auth() {
 
   return (
     <View style={styles.container}>
-      <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Input
-          label="Email"
-          leftIcon={{ type: 'font-awesome', name: 'envelope' }}
-          onChangeText={(text) => setEmail(text)}
-          value={email}
-          placeholder="email@address.com"
-          autoCapitalize={'none'}
-        />
+      <View style={styles.title}>
+        <Text style={styles.titleText}>Acil Okey</Text>
       </View>
-      <View style={styles.verticallySpaced}>
-        <Input
-          label="Password"
-          leftIcon={{ type: 'font-awesome', name: 'lock' }}
-          onChangeText={(text) => setPassword(text)}
-          value={password}
-          secureTextEntry={true}
-          placeholder="Password"
-          autoCapitalize={'none'}
-        />
+      <View style={styles.slogan}>
+        <Text style={styles.sloganText}>Find New Friends to Play With  </Text>
       </View>
-      <View style={[styles.verticallySpaced, styles.mt20]}>
-        <Button color={'tomato'} title="Sign in" disabled={loading} onPress={() => signInWithEmail()} />
-      </View>
-      <View style={styles.verticallySpaced}>
-        <Button color={'tomato'} title="Sign up" disabled={loading} onPress={() => signUpWithEmail()} />
+      <View style={styles.loginContainer}>
+        <View style={styles.login_register_switch}>
+          <TouchableOpacity style={[
+            styles.switchButton,
+            isLogin && styles.activeButton,
+            { borderTopLeftRadius: 10, borderBottomLeftRadius: 10 }
+          ]}
+          onPress={() => setIsLogin(true)}
+          >
+            <Text style={[styles.switchText, isLogin && styles.activeText]}>Login</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[
+            styles.switchButton,
+            !isLogin && styles.activeButton,
+            { borderTopRightRadius: 10, borderBottomRightRadius: 10 }
+          ]}
+          onPress={() => setIsLogin(false)}
+          >
+            <Text style={[styles.switchText, !isLogin && styles.activeText]}>Register</Text>
+          </TouchableOpacity>
+
+            {/* Burada isLogin durumuna göre form veya butonları gösterebilirsin */}
+          </View>
+        <View style={styles.inputs}>
+          <Input  
+            label="Email"
+            leftIcon={{ type: 'font-awesome', name: 'envelope' }}
+            onChangeText={(text) => setEmail(text)}
+            value={email}
+            placeholder="email@address.com"
+            autoCapitalize={'none'}
+          />
+        </View>
+        <View style={styles.inputs}>
+          <Input
+            label="Password"
+            leftIcon={{ type: 'font-awesome', name: 'lock' }}
+            onChangeText={(text) => setPassword(text)}
+            value={password}
+            secureTextEntry={true}
+            placeholder="Password"
+            autoCapitalize={'none'}
+          />
+        </View>
+        <View style={styles.login_button}>
+          <Button
+            color={'#ea2e3c'}
+            title="Login"
+            disabled={loading}
+            onPress={() => signInWithEmail()}
+            containerStyle={{ width: '92%' }}
+            buttonStyle={{ paddingVertical: 15,
+              borderRadius: 10,
+            }}
+          />
+        </View>
       </View>
     </View>
   )
@@ -81,15 +118,85 @@ export default function Auth() {
 
 const styles = StyleSheet.create({
   container: {
-    marginTop: 40,
-    padding: 12,
+    flex: 1,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 0,
   },
-  verticallySpaced: {
-    paddingTop: 4,
-    paddingBottom: 4,
-    alignSelf: 'stretch',
+  title: {
+    marginBottom: 10,
   },
-  mt20: {
-    marginTop: 20,
+  titleText: {
+    fontSize: 50,
+    fontWeight: 'bold',
+    color: '#ea2e3c',
+  },
+  slogan: {
+  },
+  sloganText: {
+    fontSize: 20,
+    color: '#000',
+  },
+  loginContainer: {
+    marginTop: 50,
+    marginHorizontal: 20,
+    borderWidth: 2,
+    borderRadius: 20,
+    borderColor: '#eee',
+    flex: 0.54,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  login_register_switch: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    paddingTop: 32,
+    marginTop: 0,
+    gap: 0,
+  },
+  inputs: {
+    marginHorizontal: 10,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#eee',
+    borderRadius: 20,
+    paddingTop: 10
+  },
+  login_button: {
+    marginTop: 15,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 30,
+  },
+
+
+  switchContainer: {
+    flexDirection: 'row',
+    alignSelf: 'center',
+    marginVertical: 20,
+  },
+  switchButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 57,
+    backgroundColor: '#f2f2f2',
+  },
+  activeButton: {
+    backgroundColor: '#ea2e3c',
+  },
+  switchText: {
+    color: '#aaa',
+    fontSize: 16,
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  activeText: {
+    color: '#fff',
   },
 })
