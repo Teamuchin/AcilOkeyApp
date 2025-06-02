@@ -52,7 +52,7 @@ export default function App() {
             options={{ 
               title: 'Acil Okey',
               headerStyle: {
-                backgroundColor: 'tomato',
+                backgroundColor: '#ea2e3c',
               },
               headerTintColor: '#fff',
               headerTitleStyle: {

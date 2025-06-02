@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
     marginBottom: 15,
   },
   closeButton: {
-    backgroundColor: 'tomato',
+    backgroundColor: '#ea2e3c',
     borderRadius: 20,
     padding: 10,
     elevation: 2,
