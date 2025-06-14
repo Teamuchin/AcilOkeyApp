@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Pl
 import { Button, Icon, Avatar } from '@rneui/themed';
 import { supabase } from '../../lib/supabase';
 import { useNavigation, useRoute } from '@react-navigation/native';
+import { RealtimeChannel } from '@supabase/supabase-js'; // Import RealtimeChannel type
 
 interface Message {
   id: string;
@@ -35,25 +36,17 @@ export default function MessageScreen() {
   const { receiverId } = route.params as { receiverId: string };
 
   useEffect(() => {
-    // --- FIX START ---
-    // Destructure 'subscription' directly from 'data'
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setCurrentUserId(session?.user?.id || null);
     });
-
-    // Also get the initial session on mount
     supabase.auth.getSession().then(({ data: { session } }) => {
       setCurrentUserId(session?.user?.id || null);
     });
-
-    // Clean up listener using the 'subscription' object
     return () => {
-      subscription?.unsubscribe(); // Now 'unsubscribe' exists on 'subscription'
+      subscription?.unsubscribe();
     };
-    // --- FIX END ---
   }, []);
 
-  // --- Fetch Receiver's Profile ---
   useEffect(() => {
     async function fetchReceiverProfile() {
       if (!receiverId) return;
@@ -77,7 +70,6 @@ export default function MessageScreen() {
   }, [receiverId, navigation]);
 
 
-  // --- Fetch Messages and Set up Realtime Subscription ---
   useEffect(() => {
     if (!currentUserId || !receiverId) {
       setLoading(false);
@@ -100,8 +92,6 @@ export default function MessageScreen() {
             receiver_profile:users!messages_receiver_id_fkey1(username)
           `)
           .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${currentUserId})`)
-          .order('created_at', { ascending: true });
-
         if (error) throw error;
 
         const formattedMessages = data.map((msg: any) => ({
@@ -121,64 +111,97 @@ export default function MessageScreen() {
     };
 
     fetchMessages();
+    let messagesChannel: RealtimeChannel | null = null; // Initialize with null and explicit type
 
-    // --- Realtime Subscription for New Messages ---
-    const messagesChannel = supabase
-      .channel(`chat_${currentUserId}_${receiverId}`)
-      .on('postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `(sender_id.eq.<span class="math-inline">\{currentUserId\},receiver\_id\.eq\.</span>{receiverId})` +
-                  `|(sender_id.eq.<span class="math-inline">\{receiverId\},receiver\_id\.eq\.</span>{currentUserId})`
-        },
-        (payload) => {
-          const newMsgRaw = payload.new as any;
-          let senderUsername: string | undefined;
-          if (newMsgRaw.sender_id === receiverId && receiverProfile) {
-              senderUsername = receiverProfile.username;
-          } else if (newMsgRaw.sender_id === currentUserId) {
-              senderUsername = "Me";
-          }
+    try {
+        messagesChannel = supabase
+            .channel(`chat_${[currentUserId, receiverId].sort().join('_')}`)
+            .on('postgres_changes',
+                {
+                    event: 'INSERT',
+                    schema: 'public',
+                    table: 'messages',
+                    filter: `and(sender_id.eq.${currentUserId},receiver_id.eq.${receiverId})` +
+                    `|and(sender_id.eq.${receiverId},receiver_id.eq.${currentUserId})`
+                },
+                (payload) => {
+                    console.log('Realtime message received:', payload);
+                    const newMsgRaw = payload.new as Message;
 
-          const newMessage: Message = {
-            ...newMsgRaw,
-            sender_username: senderUsername,
-          };
+                    let senderUsernameForRealtime: string | undefined;
+                    if (newMsgRaw.sender_id === currentUserId) {
+                        senderUsernameForRealtime = "Me";
+                    } else if (newMsgRaw.sender_id === receiverId && receiverProfile) {
+                        senderUsernameForRealtime = receiverProfile.username;
+                    } else {
+                        senderUsernameForRealtime = "Unknown User";
+                    }
 
-          setMessages(prevMessages => {
-            if (!prevMessages.some(msg => msg.id === newMessage.id)) {
-                return [...prevMessages, newMessage];
-            }
-            return prevMessages;
-          });
-          setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-        }
-      )
-      .subscribe();
+                    const newMessageWithUsername: Message = {
+                        ...newMsgRaw,
+                        sender_username: senderUsernameForRealtime,
+                    };
+
+                    setMessages(prevMessages => {
+                        if (!prevMessages.some(msg => msg.id === newMessageWithUsername.id)) {
+                            return [...prevMessages, newMessageWithUsername];
+                        }
+                        return prevMessages;
+                    });
+                    setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+                }
+            )
+            .subscribe((status) => {
+                console.log('Realtime subscription status:', status);
+                if (status === 'SUBSCRIBED') {
+                    console.log(`Successfully subscribed to channel: chat_${[currentUserId, receiverId].sort().join('_')}`);
+                }
+            });
+
+    } catch (e: any) {
+        console.error('Error setting up Realtime subscription:', e.message);
+        Alert.alert('Realtime Error', 'Failed to connect to real-time updates.');
+    }
+
 
     return () => {
-      supabase.removeChannel(messagesChannel);
+      if (messagesChannel) { // Ensure messagesChannel is not null before unsubscribing
+        console.log('Unsubscribing from messages channel:', messagesChannel.topic);
+        messagesChannel.unsubscribe();
+        supabase.removeChannel(messagesChannel);
+      }
     };
+    // --- FIX END ---
   }, [currentUserId, receiverId, receiverProfile]);
 
-  // --- Send Message Function ---
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !currentUserId || !receiverId) return;
 
     setSending(true);
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('messages')
         .insert({
           sender_id: currentUserId,
           receiver_id: receiverId,
           content: newMessage.trim(),
           is_read: false,
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+      
+      // Add the new message to the local state immediately
+      if (data) {
+        const newMessageWithUsername: Message = {
+          ...data,
+          sender_username: 'Me',
+        };
+        setMessages(prevMessages => [...prevMessages, newMessageWithUsername]);
+        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      }
+      
       setNewMessage('');
     } catch (error: any) {
       console.error('Error sending message:', error.message);
