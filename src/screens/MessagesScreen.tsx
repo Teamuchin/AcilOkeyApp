@@ -121,25 +121,26 @@ export default function MessageScreen() {
                     event: 'INSERT',
                     schema: 'public',
                     table: 'messages',
-                    filter: `and(sender_id.eq.${currentUserId},receiver_id.eq.${receiverId})` +
-                    `|and(sender_id.eq.${receiverId},receiver_id.eq.${currentUserId})`
+                    filter: `sender_id=eq.${receiverId}`
                 },
-                (payload) => {
+                async (payload) => {
                     console.log('Realtime message received:', payload);
                     const newMsgRaw = payload.new as Message;
 
-                    let senderUsernameForRealtime: string | undefined;
-                    if (newMsgRaw.sender_id === currentUserId) {
-                        senderUsernameForRealtime = "Me";
-                    } else if (newMsgRaw.sender_id === receiverId && receiverProfile) {
-                        senderUsernameForRealtime = receiverProfile.username;
-                    } else {
-                        senderUsernameForRealtime = "Unknown User";
+                    // Fetch the sender's username if not already available
+                    let senderUsername = receiverProfile?.username;
+                    if (!senderUsername) {
+                        const { data: userData } = await supabase
+                            .from('users')
+                            .select('username')
+                            .eq('id', newMsgRaw.sender_id)
+                            .single();
+                        senderUsername = userData?.username || 'Unknown User';
                     }
 
                     const newMessageWithUsername: Message = {
                         ...newMsgRaw,
-                        sender_username: senderUsernameForRealtime,
+                        sender_username: senderUsername,
                     };
 
                     setMessages(prevMessages => {
