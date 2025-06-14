@@ -10,9 +10,9 @@ interface UserProfileModalProps {
 
 // Enum değerlerini tanımlayalım
 enum UserLevel {
-  novice = 'Novice',
-  skilled = 'Skilled',
-  expert = 'Expert'
+  Novice = 'Novice',
+  Skilled = 'Skilled',
+  Expert = 'Expert'
 }
 
 interface UserData {
@@ -48,6 +48,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
   const [error, setError] = useState<string | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedBio, setEditedBio] = useState('');
+  const [showLevelSelector, setShowLevelSelector] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -106,6 +107,26 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
     }
   };
 
+  const handleLevelUpdate = async (newLevel: UserLevel) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ user_level: newLevel })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setUserData(prev => prev ? { ...prev, user_level: newLevel } : null);
+      setShowLevelSelector(false);
+    } catch (err: any) {
+      console.error('Error updating level:', err.message);
+      setError(err.message);
+    }
+  };
+
   const renderIconItem = ({ item }: { item: any }) => (
     <TouchableOpacity 
       style={styles.iconItem}
@@ -153,14 +174,25 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
                 />
               </TouchableOpacity>
 
+              <View style={styles.headerLevel}>
+                {isEditMode ? (
+                  <TouchableOpacity 
+                    onPress={() => setShowLevelSelector(true)}
+                    style={styles.levelButton}
+                  >
+                    <Text style={styles.level}>
+                      🎯 {userData?.user_level || 'Select Level'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : (
+                  userData?.user_level && (
+                    <Text style={styles.level}>🎯 {userData.user_level}</Text>
+                  )
+                )}
+              </View>
               <View style={styles.headerLocation}>
                 {userData?.location && (
                   <Text style={styles.location}>📍{userData.location}</Text>
-                )}
-              </View>
-              <View style={styles.headerLevel}>
-                {userData?.user_level && (
-                  <Text style={styles.level}>🎯 {userData.user_level}</Text>
                 )}
               </View>
               <View style={styles.imageContainer}>
@@ -180,9 +212,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
               </View>
               
               <Text style={styles.modalTitle}>{userData?.username || 'No Username'}</Text>
-              {userData?.full_name && (
-                <Text style={styles.fullName}>{userData.full_name}</Text>
-              )}
+              
               {userData?.bio_text && !isEditMode && (
                 <Text style={styles.bioText}>{userData.bio_text}</Text>
               )}
@@ -241,6 +271,35 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
           </View>
         </View>
       </Modal>
+
+      {/* Add Level Selector Modal */}
+      <Modal
+        visible={showLevelSelector}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowLevelSelector(false)}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.levelSelectorModal}>
+            <Text style={styles.modalTitle}>Select Level</Text>
+            {Object.values(UserLevel).map((level) => (
+              <TouchableOpacity
+                key={level}
+                style={styles.levelOption}
+                onPress={() => handleLevelUpdate(level)}
+              >
+                <Text style={styles.levelOptionText}>{level}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => setShowLevelSelector(false)}
+            >
+              <Text style={styles.closeButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 };
@@ -267,6 +326,7 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
     width: '80%',
+    paddingTop: 70,
   },
   modalTitle: {
     fontSize: 25,
@@ -424,6 +484,39 @@ const styles = StyleSheet.create({
     fontSize: 16,
     minHeight: 100,
     textAlignVertical: 'top',
+  },
+  levelButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderRadius: 15,
+  },
+  levelSelectorModal: {
+    margin: 20,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 35,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: '80%',
+  },
+  levelOption: {
+    width: '100%',
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+    alignItems: 'center',
+  },
+  levelOptionText: {
+    fontSize: 18,
+    color: '#333',
   },
 });
 
