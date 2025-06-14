@@ -18,6 +18,7 @@ AppState.addEventListener('change', (state) => {
 export default function Auth() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [isLogin, setIsLogin] = useState(true)
 
@@ -33,6 +34,11 @@ export default function Auth() {
   }
 
   async function signUpWithEmail() {
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match!')
+      return
+    }
+    
     setLoading(true)
     const {
       data: { session },
@@ -55,12 +61,12 @@ export default function Auth() {
       <View style={styles.slogan}>
         <Text style={styles.sloganText}>Find New Friends to Play With  </Text>
       </View>
-      <View style={styles.loginContainer}>
+      <View style={[styles.loginContainer, { flex: isLogin ? 0.54 : 0.68 }]}>
         <View style={styles.login_register_switch}>
           <TouchableOpacity style={[
             styles.switchButton,
             isLogin && styles.activeButton,
-            { borderTopLeftRadius: 10, borderBottomLeftRadius: 10 }
+            { borderTopLeftRadius: 15, borderBottomLeftRadius: 15 }
           ]}
           onPress={() => setIsLogin(true)}
           >
@@ -69,7 +75,7 @@ export default function Auth() {
           <TouchableOpacity style={[
             styles.switchButton,
             !isLogin && styles.activeButton,
-            { borderTopRightRadius: 10, borderBottomRightRadius: 10 }
+            { borderTopRightRadius: 15, borderBottomRightRadius: 15 }
           ]}
           onPress={() => setIsLogin(false)}
           >
@@ -88,7 +94,7 @@ export default function Auth() {
             autoCapitalize={'none'}
           />
         </View>
-        <View style={styles.inputs}>
+        <View style={styles.passwordContainer}>
           <Input
             label="Password"
             leftIcon={{ type: 'font-awesome', name: 'lock' }}
@@ -97,17 +103,32 @@ export default function Auth() {
             secureTextEntry={true}
             placeholder="Password"
             autoCapitalize={'none'}
+            containerStyle={styles.passwordInput}
+            inputContainerStyle={styles.inputContainer}
           />
+          {!isLogin && (
+            <Input
+              label="Confirm Password"
+              leftIcon={{ type: 'font-awesome', name: 'lock' }}
+              onChangeText={(text) => setConfirmPassword(text)}
+              value={confirmPassword}
+              secureTextEntry={true}
+              placeholder="Password"
+              autoCapitalize={'none'}
+              containerStyle={styles.passwordInput}
+              inputContainerStyle={styles.inputContainer}
+            />
+          )}
         </View>
         <View style={styles.login_button}>
           <Button
             color={'#ea2e3c'}
-            title="Login"
+            title={isLogin ? "Login" : "Register"}
             disabled={loading}
-            onPress={() => signInWithEmail()}
+            onPress={() => isLogin ? signInWithEmail() : signUpWithEmail()}
             containerStyle={{ width: '92%' }}
             buttonStyle={{ paddingVertical: 15,
-              borderRadius: 10,
+              borderRadius: 20,
             }}
           />
         </View>
@@ -175,6 +196,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 30,
   },
+  password_control:{
+
+  },
 
 
   switchContainer: {
@@ -198,5 +222,22 @@ const styles = StyleSheet.create({
   },
   activeText: {
     color: '#fff',
+  },
+  passwordContainer: {
+    marginHorizontal: 10,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: '#eee',
+    borderRadius: 20,
+    paddingTop: 10,
+    paddingBottom: 0,
+    width: '92%',
+  },
+  passwordInput: {
+    paddingHorizontal: 10,
+    width: '100%',
+  },
+  inputContainer: {
+    width: '100%',
   },
 })
