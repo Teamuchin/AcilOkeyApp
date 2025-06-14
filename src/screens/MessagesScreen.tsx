@@ -133,35 +133,6 @@ export default function MessageScreen() {
         }
 
         messagesChannel = supabase
-<<<<<<< Updated upstream
-            .channel(`chat_${[currentUserId, receiverId].sort().join('_')}`)
-            .on('postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'messages',
-                    filter: `sender_id=eq.${receiverId}`
-                },
-                async (payload) => {
-                    console.log('Realtime message received:', payload);
-                    const newMsgRaw = payload.new as Message;
-
-                    // Fetch the sender's username if not already available
-                    let senderUsername = receiverProfile?.username;
-                    if (!senderUsername) {
-                        const { data: userData } = await supabase
-                            .from('users')
-                            .select('username')
-                            .eq('id', newMsgRaw.sender_id)
-                            .single();
-                        senderUsername = userData?.username || 'Unknown User';
-                    }
-
-                    const newMessageWithUsername: Message = {
-                        ...newMsgRaw,
-                        sender_username: senderUsername,
-                    };
-=======
           .channel(channelName)
           .on('postgres_changes',
             {
@@ -181,7 +152,6 @@ export default function MessageScreen() {
               // This acts as a secondary filter as Realtime filter might be broader (if RLS allows)
               if ((newMsgRaw.sender_id === currentUserId && newMsgRaw.receiver_id === receiverId) ||
                   (newMsgRaw.sender_id === receiverId && newMsgRaw.receiver_id === currentUserId)) {
->>>>>>> Stashed changes
 
                 console.log("Realtime: Message is relevant to this specific chat.");
 
