@@ -15,6 +15,12 @@ enum UserLevel {
   Expert = 'Expert'
 }
 
+enum Location {
+  İstanbul = 'İstanbul',
+  Eskişehir = 'Eskişehir',
+  İzmir = 'İzmir',
+}
+
 interface UserData {
   id: string; // uuid (auth.uid())
   username: string | null; // text (can be null)
@@ -26,7 +32,7 @@ interface UserData {
   created_at: string; // timestamp
   online_status: boolean | null; // bool (can be null)
   game_history_visibility: boolean | null; // bool (can be null) - Using exact column name
-  location: string | null;
+  location: Location | null;
   user_level: UserLevel | null; // enum tipini belirtelim
   // Note: rating, status (like 'online'), etc., were in previous Player interface
   // but are not explicitly in your 'users' table screenshot. Adjust as needed if you add them.
@@ -50,6 +56,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
   const [editedBio, setEditedBio] = useState('');
   const [showLevelSelector, setShowLevelSelector] = useState(false);
   const [editedUsername, setEditedUsername] = useState('');
+  const [showLocationSelector, setShowLocationSelector] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -141,6 +148,26 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
     }
   };
 
+  const handleLocationUpdate = async (newLocation: Location) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ location: newLocation })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setUserData(prev => prev ? { ...prev, location: newLocation } : null);
+      setShowLocationSelector(false);
+    } catch (err: any) {
+      console.error('Error updating location:', err.message);
+      setError(err.message);
+    }
+  };
+
   const renderIconItem = ({ item }: { item: any }) => (
     <TouchableOpacity 
       style={styles.iconItem}
@@ -211,10 +238,17 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
                 )}
               </View>
               <View style={styles.headerLocation}>
-                {userData?.location && (
-                  <Text style={[styles.location, isEditMode && { borderWidth: 1, borderColor: '#f2f2f2' }]}>
-                    📍{userData.location}
-                  </Text>
+                {isEditMode ? (
+                  <TouchableOpacity 
+                    onPress={() => setShowLocationSelector(true)}
+                    style={[styles.location, { borderWidth: 1, borderColor: '#f2f2f2' }]}
+                  >
+                    <Text>📍{userData?.location || 'Select Location'}</Text>
+                  </TouchableOpacity>
+                ) : (
+                  userData?.location && (
+                    <Text style={styles.location}>📍{userData.location}</Text>
+                  )
                 )}
               </View>
               <View style={styles.imageContainer}>
@@ -325,6 +359,35 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
             <TouchableOpacity 
               style={styles.closeButton}
               onPress={() => setShowLevelSelector(false)}
+            >
+              <Text style={styles.closeButtonText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Location Selector Modal */}
+      <Modal
+        visible={showLocationSelector}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowLocationSelector(false)}
+      >
+        <View style={styles.centeredView}>
+          <View style={styles.levelSelectorModal}>
+            <Text style={styles.modalTitle}>Select Location</Text>
+            {Object.values(Location).map((location) => (
+              <TouchableOpacity
+                key={location}
+                style={styles.levelOption}
+                onPress={() => handleLocationUpdate(location)}
+              >
+                <Text style={styles.levelOptionText}>{location}</Text>
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity 
+              style={styles.closeButton}
+              onPress={() => setShowLocationSelector(false)}
             >
               <Text style={styles.closeButtonText}>Cancel</Text>
             </TouchableOpacity>
