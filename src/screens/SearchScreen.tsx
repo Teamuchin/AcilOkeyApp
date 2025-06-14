@@ -132,7 +132,7 @@ export default function SearchScreen() {
         setGames(data as GameData[]);
       } else { // Searching for Players (Users)
         const { data, error: searchError } = await supabase
-          .from('Users')
+          .from('users')
           .select(`
             id,
             username,
