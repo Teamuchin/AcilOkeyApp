@@ -54,7 +54,7 @@ export default function BottomTabNavigator() {
 
           return <Ionicons name={iconName} size={size} color={color} />;
         },
-        tabBarActiveTintColor: '#ea2e3c',
+        tabBarActiveTintColor: '#D90106',
         tabBarInactiveTintColor: 'gray',
         headerShown: false,
         tabBarButton: (props) => {

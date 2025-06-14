@@ -332,7 +332,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 15,
     marginVertical: 10,
     borderRadius: 8,
-    borderColor: '#ea2e3c',
+    borderColor: '#D90106',
   },
   selectedButtonGroupButton: {
     backgroundColor: '#ea2e3c',

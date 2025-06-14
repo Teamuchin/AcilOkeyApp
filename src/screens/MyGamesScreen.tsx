@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   groupChatBtn: {
-    borderColor: '#ea2e3c',
+    borderColor: '#D90106',
     borderWidth: 1,
     borderRadius: 5,
     marginRight: 10,

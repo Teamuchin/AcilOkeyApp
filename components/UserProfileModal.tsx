@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, Image, FlatList, Dimensions, ActivityIndicator } from 'react-native';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, Image, FlatList, Dimensions, ActivityIndicator, TextInput } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 
 interface UserProfileModalProps {
   visible: boolean;
   onClose: () => void;
+}
+
+// Enum değerlerini tanımlayalım
+enum UserLevel {
+  novice = 'Novice',
+  skilled = 'Skilled',
+  expert = 'Expert'
 }
 
 interface UserData {
@@ -19,7 +26,8 @@ interface UserData {
   created_at: string; // timestamp
   online_status: boolean | null; // bool (can be null)
   game_history_visibility: boolean | null; // bool (can be null) - Using exact column name
-  location: string | null; // text (can be null)
+  location: string | null;
+  user_level: UserLevel | null; // enum tipini belirtelim
   // Note: rating, status (like 'online'), etc., were in previous Player interface
   // but are not explicitly in your 'users' table screenshot. Adjust as needed if you add them.
 }
@@ -38,6 +46,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedBio, setEditedBio] = useState('');
 
   useEffect(() => {
     if (visible) {
@@ -76,6 +86,26 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
     }
   };
 
+  const handleSaveBio = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ bio_text: editedBio })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setUserData(prev => prev ? { ...prev, bio_text: editedBio } : null);
+      setIsEditMode(false);
+    } catch (err: any) {
+      console.error('Error updating bio:', err.message);
+      setError(err.message);
+    }
+  };
+
   const renderIconItem = ({ item }: { item: any }) => (
     <TouchableOpacity 
       style={styles.iconItem}
@@ -105,30 +135,71 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
             <Text style={styles.errorText}>{error}</Text>
           ) : (
             <>
+              <TouchableOpacity 
+                style={styles.editButton}
+                onPress={() => {
+                  if (isEditMode) {
+                    handleSaveBio();
+                  } else {
+                    setEditedBio(userData?.bio_text || '');
+                    setIsEditMode(true);
+                  }
+                }}
+              >
+                <MaterialIcons 
+                  name={isEditMode ? "save" : "edit"} 
+                  size={24} 
+                  color="#2196F3" 
+                />
+              </TouchableOpacity>
+
+              <View style={styles.headerLocation}>
+                {userData?.location && (
+                  <Text style={styles.location}>📍{userData.location}</Text>
+                )}
+              </View>
+              <View style={styles.headerLevel}>
+                {userData?.user_level && (
+                  <Text style={styles.level}>🎯 {userData.user_level}</Text>
+                )}
+              </View>
               <View style={styles.imageContainer}>
                 <Image 
                   source={selectedIcon} 
                   style={styles.userIcon}
                   resizeMode="contain"
                 />
-                <TouchableOpacity 
-                  style={styles.changeIconButton}
-                  onPress={() => setShowIconSelector(true)}
-                >
-                  <MaterialIcons name="add-circle" size={30} color="#2196F3" />
-                </TouchableOpacity>
+                {isEditMode && (
+                  <TouchableOpacity 
+                    style={styles.changeIconButton}
+                    onPress={() => setShowIconSelector(true)}
+                  >
+                    <MaterialIcons name="add-circle" size={30} color="#2196F3" />
+                  </TouchableOpacity>
+                )}
               </View>
               
               <Text style={styles.modalTitle}>{userData?.username || 'No Username'}</Text>
               {userData?.full_name && (
                 <Text style={styles.fullName}>{userData.full_name}</Text>
               )}
-              {userData?.bio_text && (
+              {userData?.bio_text && !isEditMode && (
                 <Text style={styles.bioText}>{userData.bio_text}</Text>
               )}
-              {userData?.location && (
-                <Text style={styles.location}>📍 {userData.location}</Text>
+              
+              {isEditMode && (
+                <View style={styles.bioEditContainer}>
+                  <TextInput
+                    style={styles.bioInput}
+                    multiline
+                    numberOfLines={4}
+                    value={editedBio}
+                    onChangeText={setEditedBio}
+                    placeholder="Write your bio..."
+                  />
+                </View>
               )}
+
               <Text style={styles.onlineStatus}>
                 <View style={styles.statusIndicator}>
                   <View style={[styles.statusDot, { backgroundColor: userData?.online_status ? '#34C759' : '#8E8E93' }]} />
@@ -215,9 +286,20 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   location: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#666',
-    marginBottom: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
+  },
+  level: {
+    fontSize: 14,
+    color: '#666',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
   },
   onlineStatus: {
     fontSize: 14,
@@ -307,6 +389,41 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     borderRadius: 50,
+  },
+  headerLocation: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 1,
+  },
+  headerLevel: {
+    position: 'absolute',
+    top: 35,
+    right: 10,
+    zIndex: 1,
+  },
+  editButton: {
+    position: 'absolute',
+    color: '#ea2e3c',
+    top: 10,
+    left: 10,
+    zIndex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  bioEditContainer: {
+    width: '100%',
+    marginBottom: 15,
+  },
+  bioInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 10,
+    padding: 10,
+    fontSize: 16,
+    minHeight: 100,
+    textAlignVertical: 'top',
   },
 });
 
