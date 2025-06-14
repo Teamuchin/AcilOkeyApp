@@ -1,25 +1,36 @@
 // src/screens/MessageScreen.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
-import { Button, Icon, Avatar } from '@rneui/themed';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
+import { Button, Icon } from '@rneui/themed';
 import { supabase } from '../../lib/supabase';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { RealtimeChannel } from '@supabase/supabase-js';
 
+// --- Interfaces (no change) ---
 interface Message {
   id: string;
   sender_id: string;
   receiver_id: string;
   content: string;
-  created_at: string; // Ensure this matches DB type (timestamp)
-  is_read: boolean;   // Ensure this matches DB type (boolean)
+  created_at: string;
+  is_read: boolean;
   sender_username?: string;
 }
 
 interface UserProfile {
   id: string;
   username: string;
-  profile_picture_url?: string; // Matches DB column name
+  profile_picture_url?: string;
 }
 
 export default function MessageScreen() {
@@ -27,265 +38,167 @@ export default function MessageScreen() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
-  const [receiverProfile, setReceiverProfile] = useState<UserProfile | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
+  
+  // Use a ref to hold receiver profile to avoid it being a dependency in the main effect
+  const receiverProfileRef = useRef<UserProfile | null>(null);
 
+  const scrollViewRef = useRef<ScrollView>(null);
   const navigation = useNavigation();
   const route = useRoute();
   const { receiverId } = route.params as { receiverId: string };
 
-  // --- Auth Session Listener ---
+  // Effect 1: Get the current user
   useEffect(() => {
+    const fetchUserSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setCurrentUserId(session?.user?.id ?? null);
+    };
+    fetchUserSession();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCurrentUserId(session?.user?.id || null);
+      setCurrentUserId(session?.user?.id ?? null);
     });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setCurrentUserId(session?.user?.id || null);
-    });
+
     return () => {
       subscription?.unsubscribe();
     };
   }, []);
 
-  // --- Fetch Receiver's Profile ---
+  // Effect 2: The main data and real-time setup hook
   useEffect(() => {
-    async function fetchReceiverProfile() {
-      if (!receiverId) return;
-      try {
-        const { data, error } = await supabase
-          .from('users')
-          .select('id, username, profile_picture_url')
-          .eq('id', receiverId)
-          .single();
-
-        if (error) throw error;
-        setReceiverProfile(data);
-        navigation.setOptions({ title: data.username || 'Chat' });
-      } catch (error: any) {
-        console.error('Error fetching receiver profile:', error.message);
-        Alert.alert('Error', 'Could not load chat partner details.');
-        setReceiverProfile(null);
-      }
-    }
-    fetchReceiverProfile();
-  }, [receiverId, navigation]);
-
-
-  // --- Fetch Messages and Set up Realtime Subscription ---
-  useEffect(() => {
-    // Only proceed if currentUserId and receiverId are available
+    // Don't run if we don't have the necessary IDs
     if (!currentUserId || !receiverId) {
       setLoading(false);
       return;
     }
 
-    const fetchInitialMessages = async () => {
+    let messagesChannel: RealtimeChannel;
+
+    const setup = async () => {
       setLoading(true);
+
+      // --- Step 1: Fetch receiver profile and initial messages ---
       try {
-        const { data, error } = await supabase
+        // Fetch profile
+        const { data: profileData, error: profileError } = await supabase
+          .from('users')
+          .select('id, username, profile_picture_url')
+          .eq('id', receiverId)
+          .single();
+        
+        if (profileError) throw profileError;
+        
+        // Store profile in ref and set navigation title
+        receiverProfileRef.current = profileData;
+        navigation.setOptions({ title: profileData.username || 'Chat' });
+
+        // Fetch initial messages
+        const { data: messagesData, error: messagesError } = await supabase
           .from('messages')
-          .select(`
-            id,
-            sender_id,
-            receiver_id,
-            content,
-            created_at,
-            is_read,
-            sender_profile:users!messages_sender_id_fkey1(username),
-            receiver_profile:users!messages_receiver_id_fkey1(username)
-          `)
-          .or(`sender_id.eq.${currentUserId},receiver_id.eq.${receiverId},and(sender_id.eq.${receiverId},receiver_id.eq.${currentUserId})`)
+          .select('*, sender_profile:users!messages_sender_id_fkey1(username)')
+          .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${currentUserId})`)
           .order('created_at', { ascending: true });
 
-        if (error) throw error;
+        if (messagesError) throw messagesError;
 
-        const formattedMessages = data.map((msg: any) => ({
+        const formattedMessages = messagesData.map((msg: any) => ({
           ...msg,
-          sender_username: msg.sender_id === currentUserId ? 'Me' : msg.sender_profile?.username || 'Unknown User',
+          sender_username: msg.sender_id === currentUserId ? 'Me' : (msg.sender_profile?.username || 'Unknown'),
         }));
-
-        setMessages(formattedMessages as Message[]);
-        // Scroll to bottom after loading initial messages
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+        setMessages(formattedMessages);
 
       } catch (error: any) {
-        console.error('Error fetching initial messages:', error.message);
-        Alert.alert('Error', 'Failed to load initial messages: ' + error.message);
+        console.error('Error during initial data fetch:', error.message);
+        Alert.alert('Error', 'Failed to load chat data.');
       } finally {
         setLoading(false);
       }
-    };
 
-    fetchInitialMessages(); // Call initial fetch on dependency change
+      // --- Step 2: Set up the real-time subscription ---
+      const channelName = `chat_${[currentUserId, receiverId].sort().join('_')}`;
+      messagesChannel = supabase
+        .channel(channelName, { config: { broadcast: { self: true } } })
+        .on(
+          'postgres_changes',
+          { event: 'INSERT', schema: 'public', table: 'messages' },
+          (payload) => {
+            const newMsg = payload.new as Message;
+            
+            // Filter to ensure the message belongs to this conversation
+            const isForThisChat = 
+              (newMsg.sender_id === currentUserId && newMsg.receiver_id === receiverId) ||
+              (newMsg.sender_id === receiverId && newMsg.receiver_id === currentUserId);
 
-    // --- REALTIME SUBSCRIPTION BLOCK ---
-    const channelName = `chat_${[currentUserId, receiverId].sort().join('_')}`;
-    let messagesChannel: RealtimeChannel | null = null;
-    let reconnectTimeout: NodeJS.Timeout | null = null; // Initialize to null
-
-    const setupRealtimeSubscription = () => {
-      try {
-        // Unsubscribe and remove existing channel to ensure clean setup on re-runs
-        if (messagesChannel) {
-          messagesChannel.unsubscribe();
-          supabase.removeChannel(messagesChannel);
-        }
-
-        messagesChannel = supabase
-<<<<<<< Updated upstream
-            .channel(`chat_${[currentUserId, receiverId].sort().join('_')}`)
-            .on('postgres_changes',
-                {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'messages',
-                    filter: `and(sender_id.eq.${currentUserId},receiver_id.eq.${receiverId})` +
-                    `|and(sender_id.eq.${receiverId},receiver_id.eq.${currentUserId})`
-                },
-                (payload) => {
-                    console.log('Realtime message received:', payload);
-                    const newMsgRaw = payload.new as Message;
-
-                    let senderUsernameForRealtime: string | undefined;
-                    if (newMsgRaw.sender_id === currentUserId) {
-                        senderUsernameForRealtime = "Me";
-                    } else if (newMsgRaw.sender_id === receiverId && receiverProfile) {
-                        senderUsernameForRealtime = receiverProfile.username;
-                    } else {
-                        senderUsernameForRealtime = "Unknown User";
-                    }
-
-                    const newMessageWithUsername: Message = {
-                        ...newMsgRaw,
-                        sender_username: senderUsernameForRealtime,
-                    };
-=======
-          .channel(channelName)
-          .on('postgres_changes',
-            {
-              event: 'INSERT', // Listen only for new messages
-              schema: 'public',
-              table: 'messages',
-              filter: `or(sender_id.eq.${currentUserId},receiver_id.eq.${currentUserId})`            },
-            async (payload) => {
-              console.log('Realtime: RAW PAYLOAD received:', JSON.stringify(payload, null, 2)); // Log FULL payload
-              if (payload.errors && payload.errors.length > 0) {
-                  console.error("Realtime: Payload errors:", payload.errors);
-              }
-
-              const newMsgRaw = payload.new as Message;
-
-              // Client-side filter: Only add if the message is specifically for THIS chat
-              // This acts as a secondary filter as Realtime filter might be broader (if RLS allows)
-              if ((newMsgRaw.sender_id === currentUserId && newMsgRaw.receiver_id === receiverId) ||
-                  (newMsgRaw.sender_id === receiverId && newMsgRaw.receiver_id === currentUserId)) {
->>>>>>> Stashed changes
-
-                console.log("Realtime: Message is relevant to this specific chat.");
-
-                let senderUsernameForRealtime: string | undefined;
-                if (newMsgRaw.sender_id === currentUserId) {
-                    senderUsernameForRealtime = "Me";
-                } else if (newMsgRaw.sender_id === receiverId && receiverProfile) {
-                    senderUsernameForRealtime = receiverProfile.username;
-                } else {
-                    // Fallback: If sender is someone else but relevant (shouldn't happen in 1-on-1)
-                    // Or if receiverProfile not yet loaded, could fetch here.
-                    senderUsernameForRealtime = "Unknown User";
+            if (isForThisChat) {
+              setMessages(prevMessages => {
+                if (prevMessages.find(msg => msg.id === newMsg.id)) {
+                  return prevMessages; // Already exists, do nothing
                 }
-
                 const newMessageWithUsername: Message = {
-                  ...newMsgRaw,
-                  sender_username: senderUsernameForRealtime,
+                  ...newMsg,
+                  sender_username: newMsg.sender_id === currentUserId ? 'Me' : (receiverProfileRef.current?.username || 'Unknown'),
                 };
-
-                setMessages(prevMessages => {
-                  if (!prevMessages.some(msg => msg.id === newMessageWithUsername.id)) {
-                    console.log("Realtime: Adding new message to state:", newMessageWithUsername.content);
-                    return [...prevMessages, newMessageWithUsername];
-                  }
-                  console.log("Realtime: Message already exists in state (duplicate ID).");
-                  return prevMessages;
-                });
-                setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
-              } else {
-                  console.log("Realtime: Message received but not for this specific chat, ignoring client-side filter.");
-              }
+                return [...prevMessages, newMessageWithUsername];
+              });
             }
-          )
-          .subscribe((status) => {
-            console.log('Realtime subscription status:', status);
-            if (status === 'SUBSCRIBED') {
-              console.log(`Successfully subscribed to channel: ${channelName}`);
-              if (reconnectTimeout) {
-                clearTimeout(reconnectTimeout);
-                reconnectTimeout = null; // Clear the timeout reference
-              }
-            } else if (status === 'CLOSED' || status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
-              console.warn(`Realtime: Channel ${channelName} ${status}. Attempting to reconnect...`);
-              if (reconnectTimeout) { // Clear existing timeout before setting a new one
-                clearTimeout(reconnectTimeout);
-              }
-              // Attempt to reconnect after 2 seconds
-              reconnectTimeout = setTimeout(setupRealtimeSubscription, 2000);
-            }
-          });
-
-      } catch (error: any) {
-        console.error('Error setting up realtime subscription:', error.message);
-        Alert.alert('Realtime Error', 'Failed to connect to real-time updates.');
-        if (reconnectTimeout) {
-          clearTimeout(reconnectTimeout);
-        }
-        reconnectTimeout = setTimeout(setupRealtimeSubscription, 2000);
-      }
+          }
+        )
+        .subscribe((status, err) => {
+          if (status === 'SUBSCRIBED') {
+            console.log(`Realtime subscribed to ${channelName}`);
+          }
+          if (status === 'TIMED_OUT' || status === 'CHANNEL_ERROR') {
+            console.error('Realtime subscription error:', err || status);
+            // Optionally, you can attempt a reconnect here, but often Supabase handles this.
+            // For now, we just log the error.
+          }
+        });
     };
 
-    setupRealtimeSubscription(); // Call setup function
+    setup();
 
-    // Cleanup subscription on component unmount or when dependencies change
+    // --- Step 3: Cleanup function ---
     return () => {
-      if (reconnectTimeout) {
-        clearTimeout(reconnectTimeout);
-      }
       if (messagesChannel) {
-        console.log('Unsubscribing from messages channel:', messagesChannel.topic);
-        messagesChannel.unsubscribe();
+        console.log(`Unsubscribing from ${messagesChannel.topic}`);
         supabase.removeChannel(messagesChannel);
       }
     };
-  }, [currentUserId, receiverId, receiverProfile]); // Depend on currentUserId, receiverId, receiverProfile
+
+    // This effect should ONLY re-run if the chat participants change.
+  }, [currentUserId, receiverId]);
+
+  // Effect 3: Scroll to bottom when messages list is updated
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+    }
+  }, [messages]);
+
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !currentUserId || !receiverId) return;
 
     setSending(true);
+    const content = newMessage.trim();
+    setNewMessage('');
+
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('messages')
         .insert({
           sender_id: currentUserId,
           receiver_id: receiverId,
-          content: newMessage.trim(),
+          content: content,
           is_read: false,
-        })
-        .select() // Request the inserted data back
-        .single(); // Expect a single row back
+        });
 
-      if (error) throw error;
-      
-      // Add the new message to the local state immediately (since we now have 'data' from .select().single())
-      if (data) {
-        const newMessageWithUsername: Message = {
-          ...data,
-          sender_username: 'Me', // Assuming 'Me' for sent messages
-        };
-        setMessages(prevMessages => [...prevMessages, newMessageWithUsername]);
-        setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      if (error) {
+        setNewMessage(content); // Restore message on failure
+        throw error;
       }
-      
-      setNewMessage('');
+      // Let the real-time listener handle adding the message to the state
     } catch (error: any) {
       console.error('Error sending message:', error.message);
       Alert.alert('Error', 'Failed to send message: ' + error.message);
@@ -294,33 +207,26 @@ export default function MessageScreen() {
     }
   };
 
-  if (loading && (!currentUserId || !receiverProfile)) { // Combine loading conditions
+  // --- JSX Rendering (no major changes) ---
+  if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" />
-        <Text>Loading chat...</Text>
+        <Text>Loading Chat...</Text>
       </View>
     );
-  }
-  if (!currentUserId) { // Handle case where user is not logged in after loading
-      return (
-          <View style={styles.loadingContainer}>
-              <Text>Please sign in to view messages or current user ID not available.</Text>
-          </View>
-      );
   }
 
   return (
     <KeyboardAvoidingView
       style={styles.keyboardAvoidingContainer}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 60 : 0}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
       <ScrollView
         ref={scrollViewRef}
         style={styles.messagesContainer}
         contentContainerStyle={styles.messagesContentContainer}
-        onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
       >
         {messages.map((msg) => (
           <View
@@ -330,8 +236,8 @@ export default function MessageScreen() {
               msg.sender_id === currentUserId ? styles.myMessage : styles.theirMessage,
             ]}
           >
-            {msg.sender_id !== currentUserId && msg.sender_username && (
-                <Text style={styles.senderName}>{msg.sender_username}</Text>
+            {msg.sender_id !== currentUserId && (
+                <Text style={styles.senderName}>{receiverProfileRef.current?.username || 'User'}</Text>
             )}
             <Text style={styles.messageContent}>{msg.content}</Text>
             <Text style={styles.messageTimestamp}>
@@ -354,86 +260,91 @@ export default function MessageScreen() {
           buttonStyle={styles.sendButton}
           onPress={handleSendMessage}
           disabled={sending || !newMessage.trim()}
+          loading={sending}
         />
       </View>
     </KeyboardAvoidingView>
   );
 }
 
+// --- Styles (no change) ---
 const styles = StyleSheet.create({
-  keyboardAvoidingContainer: {
-    flex: 1,
-    backgroundColor: '#f0f2f5',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  messagesContainer: {
-    flex: 1,
-    padding: 10,
-  },
-  messagesContentContainer: {
-    flexGrow: 1,
-    justifyContent: 'flex-end',
-  },
-  messageBubble: {
-    padding: 10,
-    borderRadius: 8,
-    maxWidth: '80%',
-    marginBottom: 8,
-  },
-  myMessage: {
-    alignSelf: 'flex-end',
-    backgroundColor: '#DCF8C6',
-  },
-  theirMessage: {
-    alignSelf: 'flex-start',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-  },
-  senderName: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginBottom: 4,
-    color: '#555',
-  },
-  messageContent: {
-    fontSize: 16,
-    color: '#333',
-  },
-  messageTimestamp: {
-    fontSize: 10,
-    color: '#777',
-    alignSelf: 'flex-end',
-    marginTop: 4,
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    backgroundColor: '#FFFFFF',
-  },
-  textInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: '#CCCCCC',
-    borderRadius: 20,
-    paddingHorizontal: 15,
-    paddingVertical: 8,
-    marginRight: 10,
-    minHeight: 40,
-    maxHeight: 120,
-  },
-  sendButton: {
-    borderRadius: 20,
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+    keyboardAvoidingContainer: {
+        flex: 1,
+        backgroundColor: '#f0f2f5',
+      },
+      loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
+      messagesContainer: {
+        flex: 1,
+        padding: 10,
+      },
+      messagesContentContainer: {
+        flexGrow: 1,
+        justifyContent: 'flex-end',
+      },
+      messageBubble: {
+        padding: 10,
+        borderRadius: 12,
+        maxWidth: '80%',
+        marginBottom: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 1,
+        elevation: 2,
+      },
+      myMessage: {
+        alignSelf: 'flex-end',
+        backgroundColor: '#DCF8C6',
+      },
+      theirMessage: {
+        alignSelf: 'flex-start',
+        backgroundColor: '#FFFFFF',
+      },
+      senderName: {
+        fontSize: 12,
+        fontWeight: 'bold',
+        marginBottom: 4,
+        color: '#555',
+      },
+      messageContent: {
+        fontSize: 16,
+        color: '#333',
+      },
+      messageTimestamp: {
+        fontSize: 10,
+        color: '#777',
+        alignSelf: 'flex-end',
+        marginTop: 4,
+      },
+      inputContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 10,
+        borderTopWidth: 1,
+        borderTopColor: '#E0E0E0',
+        backgroundColor: '#FFFFFF',
+      },
+      textInput: {
+        flex: 1,
+        backgroundColor: '#f0f2f5',
+        borderRadius: 20,
+        paddingHorizontal: 15,
+        paddingVertical: Platform.OS === 'ios' ? 10 : 8,
+        marginRight: 10,
+        minHeight: 40,
+        maxHeight: 120,
+      },
+      sendButton: {
+        backgroundColor: '#007bff',
+        borderRadius: 25,
+        width: 50,
+        height: 50,
+        justifyContent: 'center',
+        alignItems: 'center',
+      },
 });
