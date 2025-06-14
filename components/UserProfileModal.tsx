@@ -49,12 +49,19 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedBio, setEditedBio] = useState('');
   const [showLevelSelector, setShowLevelSelector] = useState(false);
+  const [editedUsername, setEditedUsername] = useState('');
 
   useEffect(() => {
     if (visible) {
       fetchUserData();
     }
   }, [visible]);
+
+  useEffect(() => {
+    if (isEditMode) {
+      setEditedUsername(userData?.username || '');
+    }
+  }, [isEditMode, userData?.username]);
 
   const fetchUserData = async () => {
     try {
@@ -94,15 +101,22 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
 
       const { error: updateError } = await supabase
         .from('users')
-        .update({ bio_text: editedBio })
+        .update({ 
+          bio_text: editedBio,
+          username: editedUsername 
+        })
         .eq('id', user.id);
 
       if (updateError) throw updateError;
 
-      setUserData(prev => prev ? { ...prev, bio_text: editedBio } : null);
+      setUserData(prev => prev ? { 
+        ...prev, 
+        bio_text: editedBio,
+        username: editedUsername 
+      } : null);
       setIsEditMode(false);
     } catch (err: any) {
-      console.error('Error updating bio:', err.message);
+      console.error('Error updating profile:', err.message);
       setError(err.message);
     }
   };
@@ -139,6 +153,11 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
     </TouchableOpacity>
   );
 
+  const handleClose = () => {
+    setIsEditMode(false);
+    onClose();
+  };
+
   if (!visible) return null;
 
   return (
@@ -146,7 +165,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
       visible={visible}
       animationType="slide"
       transparent={true}
-      onRequestClose={onClose}
+      onRequestClose={handleClose}
     >
       <View style={styles.centeredView}>
         <View style={styles.modalView}>
@@ -163,6 +182,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
                     handleSaveBio();
                   } else {
                     setEditedBio(userData?.bio_text || '');
+                    setEditedUsername(userData?.username || '');
                     setIsEditMode(true);
                   }
                 }}
@@ -178,7 +198,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
                 {isEditMode ? (
                   <TouchableOpacity 
                     onPress={() => setShowLevelSelector(true)}
-                    style={styles.levelButton}
+                    style={[styles.levelButton, { marginRight: -9 }]}
                   >
                     <Text style={styles.level}>
                       🎯 {userData?.user_level || 'Select Level'}
@@ -186,13 +206,15 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
                   </TouchableOpacity>
                 ) : (
                   userData?.user_level && (
-                    <Text style={styles.level}>🎯 {userData.user_level}</Text>
+                    <Text style={[styles.level, { marginRight: 0 }]}>🎯 {userData.user_level}</Text>
                   )
                 )}
               </View>
               <View style={styles.headerLocation}>
                 {userData?.location && (
-                  <Text style={styles.location}>📍{userData.location}</Text>
+                  <Text style={[styles.location, isEditMode && { borderWidth: 1, borderColor: '#f2f2f2' }]}>
+                    📍{userData.location}
+                  </Text>
                 )}
               </View>
               <View style={styles.imageContainer}>
@@ -211,7 +233,16 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
                 )}
               </View>
               
-              <Text style={styles.modalTitle}>{userData?.username || 'No Username'}</Text>
+              {isEditMode ? (
+                <TextInput
+                  style={[styles.modalTitle, styles.editableTitle]}
+                  value={editedUsername}
+                  onChangeText={setEditedUsername}
+                  placeholder="Enter username"
+                />
+              ) : (
+                <Text style={styles.modalTitle}>{userData?.username || 'No Username'}</Text>
+              )}
               
               {userData?.bio_text && !isEditMode && (
                 <Text style={styles.bioText}>{userData.bio_text}</Text>
@@ -237,7 +268,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
                 </View>
               </Text>
               
-              <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
                 <Text style={styles.closeButtonText}>Close</Text>
               </TouchableOpacity>
             </>
@@ -327,6 +358,8 @@ const styles = StyleSheet.create({
     elevation: 5,
     width: '80%',
     paddingTop: 70,
+    borderWidth: 2,
+    borderColor: '#D90106',
   },
   modalTitle: {
     fontSize: 25,
@@ -351,15 +384,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 15,
+    borderRadius: 10,
   },
   level: {
     fontSize: 14,
     color: '#666',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 15,
   },
   onlineStatus: {
     fontSize: 14,
@@ -458,8 +487,8 @@ const styles = StyleSheet.create({
   },
   headerLevel: {
     position: 'absolute',
-    top: 35,
-    right: 10,
+    top: 37,
+    right: 18,
     zIndex: 1,
   },
   editButton: {
@@ -478,7 +507,7 @@ const styles = StyleSheet.create({
   },
   bioInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
+    borderColor: '#f2f2f2',
     borderRadius: 10,
     padding: 10,
     fontSize: 16,
@@ -487,9 +516,12 @@ const styles = StyleSheet.create({
   },
   levelButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    borderRadius: 15,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: '#f2f2f2'
   },
   levelSelectorModal: {
     margin: 20,
@@ -517,6 +549,15 @@ const styles = StyleSheet.create({
   levelOptionText: {
     fontSize: 18,
     color: '#333',
+  },
+  editableTitle: {
+    borderWidth: 1,
+    borderColor: '#f2f2f2',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    width: '100%',
+    textAlign: 'center',
   },
 });
 
