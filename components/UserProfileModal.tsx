@@ -55,7 +55,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
       if (!user) throw new Error('No user found!');
 
       const { data, error: profileError } = await supabase
-        .from('Users')
+        .from('users')
         .select('*')
         .eq('id', user.id)
         .single();

@@ -14,8 +14,13 @@ import { Button } from '@rneui/themed'; // If using RNElements buttons
 import { Ionicons } from '@expo/vector-icons'; // For icons
 import DropdownButton from './components/DropdownMenu';
 import NotificationModal from './components/NotificationModal';
-const Stack = createNativeStackNavigator();
 
+type RootStackParamList = {
+  MainApp: undefined;
+  Auth: undefined;
+};
+
+const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -45,7 +50,6 @@ export default function App() {
     <NavigationContainer>
       <Stack.Navigator>
         {session && session.user ? (
-          // User is signed in, show your main app tabs
           <Stack.Screen
             name="MainApp"
             component={BottomTabNavigator}
@@ -61,14 +65,14 @@ export default function App() {
               },
               headerRight: () => (
                 <View style={headerstyles.container}>
-                    <NotificationModal/>
-                    <DropdownButton/>
+                  <NotificationModal/>
+                  <DropdownButton/>
                 </View>
               ),
-              headerShown: true }} // Hide header for the main app container
+              headerShown: true
+            }}
           />
         ) : (
-          // User is not signed in, show Auth screen
           <Stack.Screen name="Auth" component={Auth} options={{ headerShown: false }} />
         )}
       </Stack.Navigator>
