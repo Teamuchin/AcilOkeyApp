@@ -13,7 +13,6 @@ import { Button } from '@rneui/themed';
 import { Ionicons } from '@expo/vector-icons';
 import DropdownButton from './components/DropdownMenu';
 import NotificationModal from './components/NotificationModal';
-import UserProfileModal from './components/UserProfileModal';
 
 type RootStackParamList = {
   MainApp: undefined;
@@ -113,20 +112,27 @@ export default function App() {
           <Stack.Screen
             name="MainApp"
             component={BottomTabNavigator}
-            options={{
+            options={{ 
               title: 'Acil Okey',
               headerStyle: {
                 backgroundColor: '#D90106',
+                height: 100, // Make header taller to accommodate tile
               },
               headerTintColor: '#fff',
               headerTitleStyle: {
                 fontWeight: 'bold',
                 fontFamily: 'Poppins-Bold',
               },
+              headerLeft: () => (
+                <View style={headerstyles.leftContainer}>
+                  <WigglingOkeyTile value={1} size="small" />
+                  <Text style={headerstyles.titleText}>Acil Okey</Text>
+                </View>
+              ),
               headerRight: () => (
                 <View style={headerstyles.container}>
-                  <NotificationModal />
-                  <DropdownButton />
+                  <NotificationModal/>
+                  <DropdownButton/>
                 </View>
               ),
               headerShown: true,
@@ -167,10 +173,22 @@ const styles = StyleSheet.create({
 });
 
 const headerstyles = StyleSheet.create({
-  container: {
+  leftContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 4,
+  },
+  rightContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 4,
+  },
+  titleText: {
+    color: '#fff',
+    fontSize: 24,
+    fontWeight: 'bold',
+    fontFamily: 'Poppins-Bold',
+    marginLeft: 12,
   },
   buttonContainer: {
     marginHorizontal: 2,
