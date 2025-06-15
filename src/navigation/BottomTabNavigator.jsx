@@ -16,7 +16,15 @@ const MessagesStack = createNativeStackNavigator();
 
 function MessagesTabStack() {
   return (
-    <MessagesStack.Navigator>
+    <MessagesStack.Navigator
+      initialRouteName="Messages"
+      screenOptions={{
+        headerShown: true,
+        headerBackTitleVisible: false,
+        headerBackVisible: true,
+        presentation: 'card',
+      }}
+    >
       <MessagesStack.Screen
         name="Messages"
         component={ChatListScreen}
@@ -28,6 +36,9 @@ function MessagesTabStack() {
         options={({ route }) => ({
           title: route.params?.username || 'Chat',
           headerBackTitleVisible: false,
+          headerShown: true,
+          headerBackVisible: true,
+          presentation: 'card',
         })}
       />
     </MessagesStack.Navigator>

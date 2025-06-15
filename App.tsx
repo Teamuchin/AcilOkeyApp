@@ -19,6 +19,20 @@ type RootStackParamList = {
   Auth: undefined;
 };
 
+type MainAppStackParamList = {
+  Auth: undefined;
+  MainApp: {
+    screen: 'Messages'; // The name of the tab you're navigating to
+    params: {
+      screen: 'MessageScreen'; // The screen name within that tab's stack
+      params: { receiverId: string; username: string; }; // Params for the inner screen
+    };
+  };
+  MessageScreen: { receiverId: string; username: string }; // Keep if it's also a top-level screen
+  ChatListScreen: undefined;
+  Profile: undefined;
+};
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
