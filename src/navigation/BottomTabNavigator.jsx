@@ -1,9 +1,10 @@
 // src/navigation/BottomTabNavigator.js
+
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
-import { TouchableOpacity, Platform, Vibration } from 'react-native';
+import { TouchableOpacity, Platform, Vibration, View, Text, StyleSheet } from 'react-native';
 
 // Import your screen components
 import SearchScreen from '../screens/SearchScreen';
@@ -14,19 +15,81 @@ import MessageScreen from '../screens/MessagesScreen';
 // Define types for the Messages stack
 const MessagesStack = createNativeStackNavigator();
 
+// Create a StyleSheet for your custom header
+const headerStyles = StyleSheet.create({
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    height: Platform.OS === 'ios' ? 44 : 56,
+    backgroundColor: '#f0f0f0', // Sağ alttaki gri tonuna uygun renk.
+  },
+  backButton: {
+    padding: 5,
+    marginRight: 10,
+  },
+  titleContainer: {
+    flex: 1,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    // justifyContent: 'flex-start', // Bu satırı kaldırın veya comment out yapın
+    // alignSelf: 'flex-start', // Bu satırı da kaldırın veya comment out yapın
+  },
+  titleText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    textAlign: 'left', // Username'i sağa hizalar
+  },
+  reportButton: { // Yeni stil: Raporlama butonu için
+    padding: 5,
+    marginLeft: 10, // Solunda boşluk bırakır
+  }
+});
+
+function CustomChatHeader({ navigation, route, options, back }) {
+  const username = route.params?.username || 'Chat';
+
+  return (
+    <View style={headerStyles.headerContainer}>
+      {back && (
+        <TouchableOpacity
+          style={headerStyles.backButton}
+          onPress={navigation.goBack}
+        >
+          <Ionicons name="arrow-back" size={24} color="black" />
+        </TouchableOpacity>
+      )}
+      <View style={headerStyles.titleContainer}>
+        <Text style={headerStyles.titleText}>{username}</Text>
+      </View>
+      {/* Yeni: Raporlama butonu */}
+      <TouchableOpacity
+        style={headerStyles.reportButton}
+        onPress={() => {
+          // Burada raporlama işlemi için bir fonksiyon çağırabilirsiniz
+          // Örneğin: Alert.alert('Kullanıcıyı Rapor Et', `${username} adlı kullanıcıyı raporlamak istediğinize emin misiniz?`);
+          console.log(`${username} adlı kullanıcıyı rapor et`);
+        }}
+      >
+        <Ionicons name="flag-outline" size={24} color="red" />
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function MessagesTabStack() {
   return (
     <MessagesStack.Navigator>
       <MessagesStack.Screen
         name="Messages"
         component={ChatListScreen}
-        options={{ title: 'Messages', headerBackTitleVisible: false }}
+        options={{ headerShown: false }}
       />
       <MessagesStack.Screen
         name="Chat"
         component={MessageScreen}
         options={({ route }) => ({
-          title: route.params?.username || 'Chat',
+          header: (props) => <CustomChatHeader {...props} />,
           headerBackTitleVisible: false,
         })}
       />
