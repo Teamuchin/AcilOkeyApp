@@ -5,83 +5,61 @@ import { Button, Icon, Avatar, ListItem } from '@rneui/themed';
 import { supabase } from '../lib/supabase'; // Adjust path
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-// --- NEW IMPORTS FOR NESTED NAVIGATION TYPES ---
-import { CompositeNavigationProp } from '@react-navigation/native';
-import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
-// --- Define ALL relevant Param Lists ---
-// 1. Root/Main Stack Navigator's param list (from App.tsx)
-type MainAppStackParamList = {
-  Auth: undefined;
-  MainApp: {
-    screen?: string;
-    params?: {
-      screen?: string;
-      params?: {
-        receiverId?: string;
-        username?: string;
-      };
-    };
-  };
+// Define the RootStackParamList type from your App.tsx or types.ts file
+// This is crucial for type-safe navigation
+type RootStackParamList = {
   MessageScreen: { receiverId: string; username: string };
-  ChatListScreen: undefined;
-  Profile: undefined;
+  // Add other routes here that this modal might navigate to (e.g., Profile screen)
 };
 
-// 2. Messages Tab Stack Navigator's param list (from BottomTabNavigator.js/tsx)
-type MessagesTabStackParamList = {
-  Messages: undefined;
-  Chat: { receiverId: string; username: string };
-};
+// Type the navigation prop for this component
+type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-// --- Define the COMPOSITE NavigationProp for this component ---
-// This prop allows navigating from the current screen (which is effectively
-// within the MainApp Stack) to *any* screen, including nested ones.
-type GameParticipantsModalNavigationProp = CompositeNavigationProp<
-  NativeStackNavigationProp<MainAppStackParamList, 'MainApp'>, // Navigates from Main Stack, to 'MainApp' (the tab navigator)
-  BottomTabNavigationProp<MessagesTabStackParamList, 'Messages'> // And then within the 'Messages' tab (which hosts its own stack)
->;
-
-
-// --- Interfaces for fetched data (unchanged) ---
-interface GameData {
+// --- Interfaces for fetched data ---
+interface GameData { // Re-using the GameData type from MyGamesScreen
   id: string;
   title: string;
+  // Add any other game details you want to display in the modal header
 }
 
 interface Participant {
-  user_id: string;
-  joined_at: string;
-  status: string;
-  user_profile: {
+  user_id: string; // From Game_Participants
+  joined_at: string; // From Game_Participants
+  status: string; // From Game_Participants (e.g., 'joined', 'organizer')
+  // Joined user profile details (from public.users table)
+  user_profile: { // Alias from select query
     id: string;
     username: string | null;
     profile_picture_url: string | null;
-  } | null;
+  } | null; // user_profile can be null if no matching user found,
+            // though 'inner' join should ensure it's always present if the FK is good.
 }
 
+// --- Props for the Modal Component ---
 interface GameParticipantsModalProps {
   visible: boolean;
   onClose: () => void;
-  game: GameData;
-  currentUserId: string | null;
+  game: GameData; // The game object passed from MyGamesScreen
+  currentUserId: string | null; // The ID of the currently logged-in user
 }
 
 export default function GameParticipantsModal({ visible, onClose, game, currentUserId }: GameParticipantsModalProps) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const navigation = useNavigation<GameParticipantsModalNavigationProp>(); // Use the new Composite type
+  const navigation = useNavigation<NavigationProp>(); // Initialize navigation with type
 
+  // --- useEffect to fetch participants when modal becomes visible or game changes ---
   useEffect(() => {
     async function fetchParticipants() {
-      if (!game?.id) {
+      if (!game?.id) { // Ensure a game ID is provided
         setLoading(false);
         setError("No game ID provided to fetch participants.");
         return;
       }
       setLoading(true);
-      setError(null);
+      setError(null); // Clear previous errors
 
       try {
         const { data, error: fetchError } = await supabase
@@ -92,22 +70,24 @@ export default function GameParticipantsModal({ visible, onClose, game, currentU
             status,
             user_profile:users!inner(id, username, profile_picture_url)
           `)
-          .eq('game_id', game.id);
+          .eq('game_id', game.id); // Filter by the specific game ID
 
         if (fetchError) throw fetchError;
 
+        // Correctly map and type the fetched data
+        // Supabase returns user_profile as an object (or null if not inner join). No need for [0] index access.
         const typedData = data.map(item => ({
           user_id: item.user_id,
           joined_at: item.joined_at,
           status: item.status,
-          user_profile: item.user_profile ? {
+          user_profile: item.user_profile ? { // Ensure user_profile is not null before accessing its properties
             id: item.user_profile.id,
             username: item.user_profile.username,
             profile_picture_url: item.user_profile.profile_picture_url
-          } : null
+          } : null // Assign null if user_profile itself is null (shouldn't happen with !inner)
         })) as Participant[];
 
-        setParticipants(typedData);
+        setParticipants(typedData); // Update state with fetched participants
       } catch (err: any) {
         console.error('Error fetching game participants:', err.message);
         setError('Failed to load participants.');
@@ -117,43 +97,28 @@ export default function GameParticipantsModal({ visible, onClose, game, currentU
       }
     }
 
-    if (visible && game?.id) {
+    if (visible && game?.id) { // Only fetch when modal is visible AND game ID is available
       fetchParticipants();
-    } else if (!visible) {
+    } else if (!visible) { // When modal is closed, reset state to clean up for next open
       setParticipants([]);
       setError(null);
       setLoading(false);
     }
-  }, [visible, game?.id]);
+  }, [visible, game?.id]); // Re-run effect when modal visibility or game ID changes
 
+  // --- Handler for messaging a specific user ---
   const handleMessageUser = (participantUserId: string, participantUsername: string | null) => {
-    onClose();
+    onClose(); // Close the participants modal
 
     if (participantUserId === currentUserId) {
         Alert.alert("Cannot Message Self", "You cannot message yourself.");
         return;
     }
-
-    // First navigate to Messages tab
-    navigation.navigate('MainApp', {
-      screen: 'Messages'
-    });
-
-    // Then navigate to Chat screen after a short delay
-    setTimeout(() => {
-      navigation.navigate('MainApp', {
-        screen: 'Messages',
-        params: {
-          screen: 'Chat',
-          params: {
-            receiverId: participantUserId,
-            username: participantUsername || 'Chat Partner'
-          }
-        }
-      });
-    }, 100);
+    // Navigate to the MessageScreen, passing receiverId and username as parameters
+    navigation.navigate('MessageScreen', { receiverId: participantUserId, username: participantUsername || 'Chat Partner' });
   };
 
+  // --- Render UI ---
   return (
     <Modal animationType="slide" transparent={false} visible={visible} onRequestClose={onClose}>
       <View style={modalStyles.modalContainer}>
@@ -186,8 +151,12 @@ export default function GameParticipantsModal({ visible, onClose, game, currentU
                   size="medium"
                 />
                 <ListItem.Content>
-                  <ListItem.Title>{item.user_profile?.username || 'Unknown User'}</ListItem.Title>
-                  <ListItem.Subtitle>{item.status === 'organizer' ? 'Organizer' : 'Player'}</ListItem.Subtitle>
+                  <ListItem.Title>
+                    <Text>{item.user_profile?.username || 'Unknown User'}</Text>
+                  </ListItem.Title>
+                  <ListItem.Subtitle>
+                    <Text>{item.status === 'organizer' ? 'Organizer' : 'Player'}</Text>
+                  </ListItem.Subtitle>
                 </ListItem.Content>
                 {item.user_id !== currentUserId && (
                   <Button
@@ -203,9 +172,9 @@ export default function GameParticipantsModal({ visible, onClose, game, currentU
                 <ListItem.Chevron />
               </ListItem>
             )}
-            keyExtractor={item => item.user_id}
+            keyExtractor={item => item.user_id} // Unique key extractor for FlatList
             contentContainerStyle={modalStyles.participantsList}
-            ListEmptyComponent={
+            ListEmptyComponent={ // Component to render when list is empty
               <Text style={modalStyles.emptyListText}>No participants found.</Text>
             }
           />
@@ -215,11 +184,12 @@ export default function GameParticipantsModal({ visible, onClose, game, currentU
   );
 }
 
+// --- Styles for the Modal Component ---
 const modalStyles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     backgroundColor: '#fff',
-    paddingTop: Platform.OS === 'ios' ? 50 : 0,
+    paddingTop: Platform.OS === 'ios' ? 50 : 0, // Adjust for iOS notch/status bar
   },
   modalHeader: {
     flexDirection: 'row',
@@ -256,7 +226,7 @@ const modalStyles = StyleSheet.create({
     paddingBottom: 20,
   },
   messageButton: {
-    backgroundColor: '#007bff',
+    backgroundColor: '#007bff', // Blue color for message button
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 5,
