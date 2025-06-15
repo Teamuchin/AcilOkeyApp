@@ -39,12 +39,56 @@ interface UserData {
   // but are not explicitly in your 'users' table screenshot. Adjust as needed if you add them.
 }
 
-// Sample icons array - replace with your actual icons
+// Replace the userIcons array with robohash URLs
 const userIcons = [
-  require('../assets/user-icon.png'),
-  require('../assets/user-icon-2.png'),
-  require('../assets/user-icon-3.png'),
-  require('../assets/user-icon-4.png'),
+  { uri: 'https://robohash.org/3f0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/2f0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/1f0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/4f0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/5f0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/6f0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/7f0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/8f0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/9f0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/0f0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/af0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/bf0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/cf0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/df0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/ef0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/ff0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/1a0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/2a0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/3a0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/4a0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/5a0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/6a0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/7a0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/8a0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/9a0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/0a0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/aa0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/ba0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/ca0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/da0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/ea0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/fa0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/1b0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/2b0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/3b0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/4b0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/5b0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/6b0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/7b0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/8b0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/9b0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/0b0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/ab0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/bb0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/cb0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/db0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/eb0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
+  { uri: 'https://robohash.org/fb0c3ab7f30335927657531f2177b07e?set=set2&bgset=&size=400x400' },
 ];
 
 const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose }) => {
@@ -118,7 +162,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
         .from('users')
         .update({ 
           bio_text: editedBio,
-          username: editedUsername 
+          username: editedUsername,
+          profile_picture_url: selectedIcon.uri
         })
         .eq('id', user.id);
 
@@ -127,7 +172,8 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
       setUserData(prev => prev ? { 
         ...prev, 
         bio_text: editedBio,
-        username: editedUsername 
+        username: editedUsername,
+        profile_picture_url: selectedIcon.uri
       } : null);
       setIsEditMode(false);
     } catch (err: any) {
@@ -176,7 +222,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
     }
   };
 
-  const renderIconItem = ({ item }: { item: any }) => (
+  const renderIconItem = ({ item }: { item: { uri: string } }) => (
     <TouchableOpacity 
       style={styles.iconItem}
       onPress={() => {
