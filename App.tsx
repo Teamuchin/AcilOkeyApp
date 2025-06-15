@@ -1,17 +1,16 @@
-import React from 'react'
-import 'react-native-url-polyfill/auto'
-import 'react-native-get-random-values'
-import { useState, useEffect } from 'react'
-import { supabase } from './lib/supabase'
-import Auth from './components/Auth'
-import Profile from './components/Profile'
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native'
-import { Session } from '@supabase/supabase-js'
+import React from 'react';
+import 'react-native-url-polyfill/auto';
+import 'react-native-get-random-values';
+import { useState, useEffect } from 'react';
+import { supabase } from './lib/supabase';
+import Auth from './components/Auth';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { Session } from '@supabase/supabase-js';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import BottomTabNavigator from './src/navigation/BottomTabNavigator';
-import { Button } from '@rneui/themed'; // If using RNElements buttons
-import { Ionicons } from '@expo/vector-icons'; // For icons
+import { Button } from '@rneui/themed';
+import { Ionicons } from '@expo/vector-icons';
 import DropdownButton from './components/DropdownMenu';
 import NotificationModal from './components/NotificationModal';
 
@@ -23,27 +22,53 @@ type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null)
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Set loading to true initially
+    setLoading(true);
+    
+    // Check for an existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
+      setSession(session);
+      // No need to set loading false here, onAuthStateChange will handle it
+    });
+
+    // Listen for authentication state changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setSession(session);
+      
+      // NEW: Update online status on SIGNED_IN event
+      if (_event === 'SIGNED_IN' && session) {
+        try {
+          await supabase
+            .from('users')
+            .update({
+              online_status: true,
+            })
+            .eq('id', session.user.id);
+        } catch (error) {
+          console.error('Error updating online status:', error);
+        }
+      }
+      
       setLoading(false);
-    })
+    });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
-  }, [])
+    // Cleanup function to remove the listener
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
+  }, []);
 
-  if (loading) { // Show a loading indicator while checking session
+  if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" />
         <Text>Loading app...</Text>
       </View>
-    )
+    );
   }
 
   return (
@@ -53,7 +78,7 @@ export default function App() {
           <Stack.Screen
             name="MainApp"
             component={BottomTabNavigator}
-            options={{ 
+            options={{
               title: 'Acil Okey',
               headerStyle: {
                 backgroundColor: '#D90106',
@@ -65,11 +90,11 @@ export default function App() {
               },
               headerRight: () => (
                 <View style={headerstyles.container}>
-                  <NotificationModal/>
-                  <DropdownButton/>
+                  <NotificationModal />
+                  <DropdownButton />
                 </View>
               ),
-              headerShown: true
+              headerShown: true,
             }}
           />
         ) : (
@@ -77,7 +102,7 @@ export default function App() {
         )}
       </Stack.Navigator>
     </NavigationContainer>
-  )
+  );
 }
 
 const styles = StyleSheet.create({
