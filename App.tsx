@@ -14,7 +14,6 @@ import { Button } from '@rneui/themed'; // If using RNElements buttons
 import { Ionicons } from '@expo/vector-icons'; // For icons
 import DropdownButton from './components/DropdownMenu';
 import NotificationModal from './components/NotificationModal';
-import WigglingOkeyTile from './components/WigglingOkeyTile'; // Add this import
 
 type RootStackParamList = {
   MainApp: undefined;
@@ -55,7 +54,7 @@ export default function App() {
             name="MainApp"
             component={BottomTabNavigator}
             options={{ 
-              title: '', // Remove title to make room for custom header
+              title: 'Acil Okey',
               headerStyle: {
                 backgroundColor: '#D90106',
               },
@@ -65,7 +64,7 @@ export default function App() {
                 fontFamily: 'Poppins-Bold',
               },
               headerRight: () => (
-                <View style={headerstyles.rightContainer}>
+                <View style={headerstyles.container}>
                   <NotificationModal/>
                   <DropdownButton/>
                 </View>
