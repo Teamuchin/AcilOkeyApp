@@ -1,6 +1,6 @@
 // src/screens/SearchScreen.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal, Image, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal, Image, TouchableOpacity, Platform } from 'react-native';
 import { Input, Button, ButtonGroup, ListItem, Avatar } from '@rneui/themed';
 import { Icon } from '@rneui/themed';
 import { supabase } from '../../lib/supabase'; // Your Supabase client
@@ -26,7 +26,6 @@ interface UserData {
   id: string; // uuid (auth.uid())
   username: string | null; // text (can be null)
   email: string | null; // text (can be null)
-  // full_name: string | null; // Removed - as per your database change
   bio_text: string | null; // text (can be null)
   phone_number: string | null; // text (can be null)
   profile_picture_url: string | null; // text (can be null, usually stores URL)
@@ -34,13 +33,13 @@ interface UserData {
   online_status: boolean | null; // bool (can be null)
   game_history_visibility: boolean | null; // bool (can be null)
   location: string | null; // text (can be null)
-  user_level: 'Novice' | 'Skilled' | 'Expert' | null; // Yeni eklenen alan
+  user_level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Master' | null; // Added based on your latest image for user_level
 }
 
-// Yeni bir PlayerProfileModal bileşeni ekleyelim
-const PlayerProfileModal = ({ visible, onClose, userData }: { 
-  visible: boolean; 
-  onClose: () => void; 
+// --- PlayerProfileModal Component (Nested within SearchScreen) ---
+const PlayerProfileModal = ({ visible, onClose, userData }: {
+  visible: boolean;
+  onClose: () => void;
   userData: UserData | null;
 }) => {
   if (!visible || !userData) return null;
@@ -54,31 +53,38 @@ const PlayerProfileModal = ({ visible, onClose, userData }: {
     >
       <View style={styles.centeredView}>
         <View style={styles.modalView}>
+          {/* Level and Location at the top right/left */}
           <View style={styles.headerLevel}>
-            <Text style={styles.level}>🎯 {userData.user_level || 'Not set'}</Text>
+            <Text style={styles.levelBadge}>🎯 {userData.user_level || 'Not set'}</Text>
           </View>
           <View style={styles.headerLocation}>
-            <Text style={styles.location}>📍{userData.location || 'Not set'}</Text>
+            <Text style={styles.locationBadge}>📍{userData.location || 'Not set'}</Text>
           </View>
+
+          {/* User Image */}
           <View style={styles.imageContainer}>
-            <Image 
-              source={userData.profile_picture_url ? { uri: userData.profile_picture_url } : require('../../assets/user-icon.png')} 
+            <Image
+              source={userData.profile_picture_url ? { uri: userData.profile_picture_url } : require('../../assets/user-icon.png')}
               style={styles.userIcon}
               resizeMode="contain"
             />
           </View>
-          
+
+          {/* Username */}
           <Text style={styles.modalTitle}>{userData.username || 'No Username'}</Text>
-          
+
+          {/* Bio Text */}
           <Text style={styles.bioText}>{userData.bio_text || 'No bio available'}</Text>
 
+          {/* Online Status */}
           <Text style={styles.onlineStatus}>
             <View style={styles.statusIndicator}>
               <View style={[styles.statusDot, { backgroundColor: userData.online_status ? '#34C759' : '#8E8E93' }]} />
               <Text style={styles.statusText}>{userData.online_status ? 'Online' : 'Offline'}</Text>
             </View>
           </Text>
-          
+
+          {/* Close Button */}
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <Text style={styles.closeButtonText}>Close</Text>
           </TouchableOpacity>
@@ -88,6 +94,7 @@ const PlayerProfileModal = ({ visible, onClose, userData }: {
   );
 };
 
+// --- Main SearchScreen Component ---
 export default function SearchScreen() {
   const [selectedIndex, setSelectedIndex] = useState(0); // 0 for Games, 1 for Players
   const [searchQuery, setSearchQuery] = useState('');
@@ -95,9 +102,9 @@ export default function SearchScreen() {
   const [users, setUsers] = useState<UserData[]>([]); // Using UserData
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
-  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null); // State for current user ID
+  const [selectedUser, setSelectedUser] = useState<UserData | null>(null); // State to hold selected user for modal
+  const [showProfileModal, setShowProfileModal] = useState(false); // State to control modal visibility
 
   useEffect(() => {
     // Get current user ID when component mounts
@@ -150,10 +157,8 @@ export default function SearchScreen() {
 
         if (searchError) throw searchError;
         setGames(data as GameData[]);
-      } else { // UPDATED: Searching for Players (Users) by username only
-        let query = supabase
-          .from('users')
-          .select(`
+      } else { // Searching for Players (Users)
+        let query = supabase.from('users').select(`
             id,
             username,
             email,
@@ -191,28 +196,71 @@ export default function SearchScreen() {
     }
   };
 
+  // --- NEW: handleJoinGame function ---
+  const handleJoinGame = async (gameId: string, gameTitle: string) => {
+    if (!currentUserId) {
+      Alert.alert("Error", "You must be logged in to join a game.");
+      return;
+    }
+
+    setLoading(true); // Show loading while processing
+    try {
+      // 1. Check if user is already a participant (optional but good practice)
+      const { data: existingParticipants, error: checkError } = await supabase
+        .from('Game_Participants')
+        .select('user_id')
+        .eq('game_id', gameId)
+        .eq('user_id', currentUserId)
+        .limit(1);
+
+      if (checkError) throw checkError;
+
+      if (existingParticipants && existingParticipants.length > 0) {
+        Alert.alert("Already Joined", `You are already a participant in "${gameTitle}".`);
+        return;
+      }
+
+      // 2. Insert new record into Game_Participants
+      const { error: insertError } = await supabase
+        .from('Game_Participants')
+        .insert({
+          game_id: gameId,
+          user_id: currentUserId,
+          joined_at: new Date().toISOString(),
+          status: 'Joined', // Or whatever your default status for joining is
+        });
+
+      if (insertError) throw insertError;
+
+      // 3. Increment current_players count in the Game table using RPC
+      const { error: updateGameError } = await supabase
+        .rpc('increment_current_players', { _game_id: gameId }); // Call the RPC function
+
+      if (updateGameError) {
+        console.warn('Warning: Could not increment game players count:', updateGameError.message);
+        Alert.alert('Warning', 'Game joined, but players count might not be updated.');
+      }
+
+      Alert.alert("Success", `You have joined "${gameTitle}"!`);
+      // Refresh the list of games to reflect the change
+      // Re-run the search to update counts and show changed status if needed
+      handleSearch(); 
+    } catch (err: any) {
+      console.error('Error joining game:', err.message);
+      Alert.alert("Error", `Failed to join "${gameTitle}": ` + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
   // --- Render Functions for Game/Player Lists ---
 
   const renderGameItem = (game: GameData) => (
-    <ListItem.Swipeable
-      key={game.id}
+    <ListItem
+      key={game.id} // Key prop for ListItem
       bottomDivider
-      onPress={() => Alert.alert('Game Details', `View details for: ${game.title}`)}
-      leftContent={
-        <Button
-          title="Info"
-          icon={{ name: 'info', color: 'white' }}
-          buttonStyle={{ minHeight: '100%' }}
-        />
-      }
-      rightContent={
-        <Button
-          title="Join"
-          icon={{ name: 'add', color: 'white' }}
-          buttonStyle={{ minHeight: '100%', backgroundColor: 'green' }}
-          onPress={() => Alert.alert('Join Game', `Join ${game.title}?`)}
-        />
-      }
+      onPress={() => Alert.alert('Game Details', `View details for: ${game.title}`)} // Main press for ListItem
     >
       <ListItem.Content>
         <ListItem.Title style={styles.listItemTitle}>{game.title}</ListItem.Title>
@@ -228,8 +276,17 @@ export default function SearchScreen() {
         <Text style={styles.listItemSubtitle}>Status: {game.game_status}</Text>
         {game.description && <Text style={styles.playerBio}>Description: {game.description}</Text>}
       </ListItem.Content>
-      <ListItem.Chevron />
-    </ListItem.Swipeable>
+      {/* --- Always visible Join Button --- */}
+      <View style={styles.gameActionButtonContainer}>
+        <Button
+          title="Join"
+          buttonStyle={styles.joinButton} // Apply specific style for the join button
+          titleStyle={styles.joinButtonTitle}
+          onPress={() => handleJoinGame(game.id, game.title)} // Call handleJoinGame
+        />
+      </View>
+      <ListItem.Chevron /> {/* Optional chevron */}
+    </ListItem>
   );
 
   const renderPlayerItem = (user: UserData) => (
@@ -237,27 +294,27 @@ export default function SearchScreen() {
       key={user.id}
       bottomDivider
       onPress={() => {
-        setSelectedUser(user);
-        setShowProfileModal(true);
+        setSelectedUser(user); // Set the user data for the modal
+        setShowProfileModal(true); // Open the modal
       }}
       leftContent={
         <Button
           title="Message"
           icon={{ name: 'chatbox-outline', type: 'ionicon', color: 'white' }}
-          buttonStyle={{ minHeight: '100%' }}
+          buttonStyle={styles.swipeButton}
         />
       }
       rightContent={
         <Button
           title="Add Friend"
           icon={{ name: 'person-add-outline', type: 'ionicon', color: 'white' }}
-          buttonStyle={{ minHeight: '100%', backgroundColor: '#007bff' }}
+          buttonStyle={[styles.swipeButton, { backgroundColor: '#007bff' }]}
           onPress={() => Alert.alert('Add Friend', `Send request to ${user.username || 'Unknown'}?`)}
         />
       }
     >
       <Avatar
-        source={user.profile_picture_url ? { uri: user.profile_picture_url } : { uri: 'https://via.placeholder.com/150' }}
+        source={user.profile_picture_url ? { uri: user.profile_picture_url } : require('../../assets/user-icon.png')}
         rounded
         size="medium"
         containerStyle={styles.avatarContainer}
@@ -346,10 +403,11 @@ export default function SearchScreen() {
         </ScrollView>
       )}
 
+      {/* Player Profile Modal */}
       <PlayerProfileModal
         visible={showProfileModal}
         onClose={() => setShowProfileModal(false)}
-        userData={selectedUser}
+        userData={selectedUser} // Pass the selected user's data to the modal
       />
     </View>
   );
@@ -569,12 +627,38 @@ const styles = StyleSheet.create({
     right: 10,
     zIndex: 1,
   },
-  level: {
+  levelBadge: {
     fontSize: 14,
     color: '#666',
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 10,
+  },
+  locationBadge: {
+    fontSize: 14,
+    color: '#666',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  gameActionButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 10, // Adjust spacing from content
+  },
+  joinButton: {
+    backgroundColor: 'green', // Green background for Join
+    borderRadius: 5,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  joinButtonTitle: {
+    color: 'white',
+    fontSize: 14,
+  },
+  swipeButton: { // Style for Message/Add Friend buttons on player items
+    minHeight: '100%', // Ensures button fills height of ListItem
   },
 });

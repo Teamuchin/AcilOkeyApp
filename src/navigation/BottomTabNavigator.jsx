@@ -95,24 +95,19 @@ function CustomChatHeader({ navigation, route, options, back }) {
 
   return (
     <View style={headerStyles.headerContainer}>
-      {back && (
-        <TouchableOpacity
-          style={headerStyles.backButton}
-          onPress={navigation.goBack}
-        >
-          <Ionicons name="arrow-back" size={24} color="black" />
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={headerStyles.backButton}
+        onPress={navigation.goBack}
+      >
+        <Ionicons name="arrow-back" size={24} color="black" />
+      </TouchableOpacity>
       <View style={headerStyles.titleContainer}>
         <Text style={headerStyles.titleText}>{username}</Text>
         <View style={[headerStyles.statusDot, { backgroundColor: onlineStatus ? '#34C759' : '#8E8E93' }]} />
       </View>
-      {/* Yeni: Raporlama butonu */}
       <TouchableOpacity
         style={headerStyles.reportButton}
         onPress={() => {
-          // Burada raporlama işlemi için bir fonksiyon çağırabilirsiniz
-          // Örneğin: Alert.alert('Kullanıcıyı Rapor Et', `${username} adlı kullanıcıyı raporlamak istediğinize emin misiniz?`);
           console.log(`${username} adlı kullanıcıyı rapor et`);
         }}
       >
