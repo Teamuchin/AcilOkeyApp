@@ -1,10 +1,6 @@
 // src/screens/SearchScreen.tsx
 import React, { useState, useEffect } from 'react';
-<<<<<<< Updated upstream
-import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
-=======
 import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal, Image, TouchableOpacity, Platform } from 'react-native';
->>>>>>> Stashed changes
 import { Input, Button, ButtonGroup, ListItem, Avatar } from '@rneui/themed';
 import { Icon } from '@rneui/themed';
 import { supabase } from '../../lib/supabase'; // Your Supabase client
@@ -35,13 +31,6 @@ interface UserData {
   online_status: boolean | null; // bool (can be null)
   game_history_visibility: boolean | null; // bool (can be null)
   location: string | null; // text (can be null)
-<<<<<<< Updated upstream
-  // latitude: number | null; // Removed - as per your database change
-  // longitude: number | null; // Removed - as per your database change
-  // last_location_update: string | null; // Removed - as it was tied to latitude/longitude
-}
-
-=======
   user_level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Master' | null; // Added based on your latest image for user_level
 }
 
@@ -102,7 +91,6 @@ const PlayerProfileModal = ({ visible, onClose, userData }: {
     </Modal>
   );
 };
->>>>>>> Stashed changes
 
 // --- Main SearchScreen Component ---
 export default function SearchScreen() {
@@ -113,11 +101,8 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null); // State for current user ID
-<<<<<<< Updated upstream
-=======
   const [selectedUser, setSelectedUser] = useState<UserData | null>(null); // State to hold selected user for modal
   const [showProfileModal, setShowProfileModal] = useState(false); // State to control modal visibility
->>>>>>> Stashed changes
 
   useEffect(() => {
     // Get current user ID when component mounts
@@ -313,14 +298,10 @@ export default function SearchScreen() {
     <ListItem.Swipeable
       key={user.id}
       bottomDivider
-<<<<<<< Updated upstream
-      onPress={() => Alert.alert('Player Profile', `View profile for: ${user.username || 'Unknown'}`)}
-=======
       onPress={() => {
         setSelectedUser(user); // Set the user data for the modal
         setShowProfileModal(true); // Open the modal
       }}
->>>>>>> Stashed changes
       leftContent={
         <Button
           title="Message"
@@ -426,8 +407,6 @@ export default function SearchScreen() {
           )}
         </ScrollView>
       )}
-<<<<<<< Updated upstream
-=======
 
       {/* Player Profile Modal */}
       <PlayerProfileModal
@@ -435,7 +414,6 @@ export default function SearchScreen() {
         onClose={() => setShowProfileModal(false)}
         userData={selectedUser} // Pass the selected user's data to the modal
       />
->>>>>>> Stashed changes
     </View>
   );
 }
@@ -521,8 +499,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 50,
   },
-<<<<<<< Updated upstream
-=======
   // Styles for PlayerProfileModal (moved from separate file)
   centeredView: {
     flex: 1,
@@ -692,5 +668,4 @@ const styles = StyleSheet.create({
   swipeButton: { // Style for Message/Add Friend buttons on player items
     minHeight: '100%', // Ensures button fills height of ListItem
   },
->>>>>>> Stashed changes
 });
