@@ -91,7 +91,21 @@ export default function MessageScreen() {
         
         // Store profile in ref and set navigation title
         receiverProfileRef.current = profileData;
-        navigation.setOptions({ title: profileData.username || 'Chat' });
+        navigation.setOptions({
+          title: profileData.username || 'Chat',
+          headerTitleStyle: {
+            fontSize: 22,
+            fontWeight: 'bold'
+          },
+          headerLeft: () => (
+            <Icon 
+              name="arrow-back" 
+              type="material" 
+              onPress={() => navigation.goBack()}
+              containerStyle={{ marginRight: 10 }}
+            />
+          )
+        });
 
         // Fetch initial messages
         const { data: messagesData, error: messagesError } = await supabase
@@ -340,7 +354,7 @@ const styles = StyleSheet.create({
         maxHeight: 120,
       },
       sendButton: {
-        backgroundColor: '#007bff',
+        backgroundColor: '#2196F3',
         borderRadius: 25,
         width: 50,
         height: 50,

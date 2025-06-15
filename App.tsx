@@ -1,20 +1,18 @@
-import React from 'react'
-import 'react-native-url-polyfill/auto'
-import 'react-native-get-random-values'
-import { useState, useEffect } from 'react'
-import { supabase } from './lib/supabase'
-import Auth from './components/Auth'
-import Profile from './components/Profile'
-import { View, Text, ActivityIndicator, StyleSheet } from 'react-native'
-import { Session } from '@supabase/supabase-js'
+import React from 'react';
+import 'react-native-url-polyfill/auto';
+import 'react-native-get-random-values';
+import { useState, useEffect } from 'react';
+import { supabase } from './lib/supabase';
+import Auth from './components/Auth';
+import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
+import { Session } from '@supabase/supabase-js';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import BottomTabNavigator from './src/navigation/BottomTabNavigator';
-import { Button } from '@rneui/themed'; // If using RNElements buttons
-import { Ionicons } from '@expo/vector-icons'; // For icons
+import { Button } from '@rneui/themed';
+import { Ionicons } from '@expo/vector-icons';
 import DropdownButton from './components/DropdownMenu';
 import NotificationModal from './components/NotificationModal';
-import WigglingOkeyTile from './components/WigglingOkeyTile'; // Add this import
 
 type RootStackParamList = {
   MainApp: undefined;
@@ -24,27 +22,87 @@ type RootStackParamList = {
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function App() {
-  const [session, setSession] = useState<Session | null>(null)
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+
+  // Register başarılı olduğunda çağrılacak fonksiyon
+  const handleRegisterSuccess = () => {
+    setShowProfileModal(true);
+  };
 
   useEffect(() => {
+    setLoading(true);
+    
+    // İlk session kontrolü
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
+      setSession(session);
+      if (session?.user) {
+        // Session varsa hemen isNewUser kontrolü yap
+        checkIsNewUser(session.user.id);
+      }
       setLoading(false);
-    })
+    });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
-  }, [])
+    // Auth state değişikliklerini dinle
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      setSession(session);
+      
+      if (_event === 'SIGNED_IN' && session) {
+        try {
+          // Online status güncelle
+          await supabase
+            .from('users')
+            .update({ online_status: true })
+            .eq('id', session.user.id);
+            
+          // Hemen isNewUser kontrolü yap
+          const { data, error } = await supabase
+            .from('users')
+            .select('isNewUser')
+            .eq('id', session.user.id)
+            .single();
 
-  if (loading) { // Show a loading indicator while checking session
+          if (!error && data?.isNewUser) {
+            setShowProfileModal(true);
+          }
+        } catch (error) {
+          console.error('Error:', error);
+        }
+      }
+      
+      setLoading(false);
+    });
+
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
+  }, []);
+
+  // isNewUser kontrolü için fonksiyon
+  const checkIsNewUser = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('isNewUser')
+        .eq('id', userId)
+        .single();
+
+      if (!error && data?.isNewUser) {
+        setShowProfileModal(true);
+      }
+    } catch (error) {
+      console.error('Error checking isNewUser:', error);
+    }
+  };
+
+  if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" />
         <Text>Loading app...</Text>
       </View>
-    )
+    );
   }
 
   return (
@@ -55,7 +113,7 @@ export default function App() {
             name="MainApp"
             component={BottomTabNavigator}
             options={{ 
-              title: '', // Remove title to make room for custom header
+              title: 'Acil Okey',
               headerStyle: {
                 backgroundColor: '#D90106',
                 height: 100, // Make header taller to accommodate tile
@@ -72,20 +130,38 @@ export default function App() {
                 </View>
               ),
               headerRight: () => (
-                <View style={headerstyles.rightContainer}>
+                <View style={headerstyles.container}>
                   <NotificationModal/>
                   <DropdownButton/>
                 </View>
               ),
-              headerShown: true
+              headerShown: true,
             }}
           />
         ) : (
-          <Stack.Screen name="Auth" component={Auth} options={{ headerShown: false }} />
+          <Stack.Screen 
+            name="Auth" 
+            options={{ headerShown: false }}
+          >
+            {(props) => (
+              <Auth 
+                {...props} 
+                onRegisterSuccess={handleRegisterSuccess}
+              />
+            )}
+          </Stack.Screen>
         )}
       </Stack.Navigator>
+
+      {/* Modal'ı her zaman göster, session ve showProfileModal true ise */}
+      {session && session.user && showProfileModal && (
+        <UserProfileModal
+          visible={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+        />
+      )}
     </NavigationContainer>
-  )
+  );
 }
 
 const styles = StyleSheet.create({

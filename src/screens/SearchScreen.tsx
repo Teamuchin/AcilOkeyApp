@@ -1,11 +1,13 @@
+// src/screens/SearchScreen.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal, Image, TouchableOpacity } from 'react-native';
 import { Input, Button, ButtonGroup, ListItem, Avatar } from '@rneui/themed';
 import { Icon } from '@rneui/themed';
 import { supabase } from '../../lib/supabase'; // Your Supabase client
 
-// --- Updated Interfaces for your Supabase data based on images ---
-// These should match your Supabase table schema exactly
+// --- Updated Interfaces for your Supabase data ---
+// Ensure these match your Supabase table schema exactly
+
 interface GameData {
   id: string; // uuid
   title: string; // text
@@ -16,102 +18,120 @@ interface GameData {
   current_players: number; // int2
   description: string | null; // text (can be null)
   created_at: string; // timestamp
-  game_status: 'open' | 'in_progress' | 'completed' | 'scheduled'; // Your game_stat ENUM values
-  game_type: 'regular' | 'tournament'; // Your game_typ ENUM values
-  // Note: organizer_id is a foreign key, but not directly in the games table columns you showed.
-  // We'll need to select it if it's there or handle joining.
+  game_status: 'Scheduled' | 'Open' | 'Completed' | 'Cancelled'; // Based on game_status enum
+  game_type: 'Beginner' | 'Intermediate' | 'Advanced' | 'Master'; // Based on user_level enum
 }
 
 interface UserData {
   id: string; // uuid (auth.uid())
   username: string | null; // text (can be null)
   email: string | null; // text (can be null)
-  full_name: string | null; // text (can be null)
+  // full_name: string | null; // Removed - as per your database change
   bio_text: string | null; // text (can be null)
   phone_number: string | null; // text (can be null)
   profile_picture_url: string | null; // text (can be null, usually stores URL)
   created_at: string; // timestamp
   online_status: boolean | null; // bool (can be null)
-  game_history_visibility: boolean | null; // bool (can be null) - Using exact column name
+  game_history_visibility: boolean | null; // bool (can be null)
   location: string | null; // text (can be null)
-  // Note: rating, status (like 'online'), etc., were in previous Player interface
-  // but are not explicitly in your 'users' table screenshot. Adjust as needed if you add them.
+  user_level: 'Novice' | 'Skilled' | 'Expert' | null; // Yeni eklenen alan
 }
 
+// Yeni bir PlayerProfileModal bileşeni ekleyelim
+const PlayerProfileModal = ({ visible, onClose, userData }: { 
+  visible: boolean; 
+  onClose: () => void; 
+  userData: UserData | null;
+}) => {
+  if (!visible || !userData) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={onClose}
+    >
+      <View style={styles.centeredView}>
+        <View style={styles.modalView}>
+          <View style={styles.headerLevel}>
+            <Text style={styles.level}>🎯 {userData.user_level || 'Not set'}</Text>
+          </View>
+          <View style={styles.headerLocation}>
+            <Text style={styles.location}>📍{userData.location || 'Not set'}</Text>
+          </View>
+          <View style={styles.imageContainer}>
+            <Image 
+              source={userData.profile_picture_url ? { uri: userData.profile_picture_url } : require('../../assets/user-icon.png')} 
+              style={styles.userIcon}
+              resizeMode="contain"
+            />
+          </View>
+          
+          <Text style={styles.modalTitle}>{userData.username || 'No Username'}</Text>
+          
+          <Text style={styles.bioText}>{userData.bio_text || 'No bio available'}</Text>
+
+          <Text style={styles.onlineStatus}>
+            <View style={styles.statusIndicator}>
+              <View style={[styles.statusDot, { backgroundColor: userData.online_status ? '#34C759' : '#8E8E93' }]} />
+              <Text style={styles.statusText}>{userData.online_status ? 'Online' : 'Offline'}</Text>
+            </View>
+          </Text>
+          
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <Text style={styles.closeButtonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 export default function SearchScreen() {
   const [selectedIndex, setSelectedIndex] = useState(0); // 0 for Games, 1 for Players
   const [searchQuery, setSearchQuery] = useState('');
   const [games, setGames] = useState<GameData[]>([]); // Using GameData
-  const [Users, setUsers] = useState<UserData[]>([]); // Using UserData
+  const [users, setUsers] = useState<UserData[]>([]); // Using UserData
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      if (selectedIndex === 0) { // Fetch Games
-        const { data, error: gamesError } = await supabase
-          .from('Game')
-          .select(`
-            id,
-            title,
-            location_name,
-            start_time,
-            end_time,
-            required_players,
-            current_players,
-            description,
-            created_at,
-            game_status,
-            game_type
-          `);
-
-        if (gamesError) throw gamesError;
-        setGames(data as GameData[]);
-      } else { // Fetch Players (Users)
-        const { data, error: usersError } = await supabase
-          .from('users')
-          .select(`
-            id,
-            username,
-            email,
-            full_name,
-            bio_text,
-            phone_number,
-            profile_picture_url,
-            created_at,
-            online_status,
-            game_history_visibility,
-            location
-          `);
-
-        if (usersError) throw usersError;
-        setUsers(data as UserData[]);
-      }
-    } catch (err: any) {
-      console.error('Error fetching data from Supabase:', err.message);
-      setError('Failed to load data. Please try again.');
-      Alert.alert('Error', 'Failed to load data from Supabase: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   useEffect(() => {
-    fetchData();
-  }, [selectedIndex]);
+    // Get current user ID when component mounts
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+    };
+    getCurrentUser();
+  }, []);
 
   const handleSearch = async () => {
+    // Optimization: if no search query, clear results immediately and return
+    if (!searchQuery.trim()) {
+      setGames([]);
+      setUsers([]);
+      return;
+    }
+
+    // Add a check for currentUserId before performing player search
+    if (selectedIndex === 1 && currentUserId === null) {
+        Alert.alert("Error", "User data is still loading. Please try searching for players again in a moment.");
+        setLoading(false);
+        return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
       if (selectedIndex === 0) { // Searching for Games
         const { data, error: searchError } = await supabase
-          .from('games')
+          .from('Game') // Make sure this matches your table name exactly, e.g., 'games' or 'Game'
           .select(`
             id,
             title,
@@ -125,32 +145,42 @@ export default function SearchScreen() {
             game_status,
             game_type
           `)
-          .ilike('title', `%${searchQuery}%`)
-          .or(`location_name.ilike.%${searchQuery}%,game_type.ilike.%${searchQuery}%`); // Search across multiple fields
+          // Filter by title and location_name only
+          .or(`title.ilike.%${searchQuery}%,location_name.ilike.%${searchQuery}%`);
 
         if (searchError) throw searchError;
         setGames(data as GameData[]);
-      } else { // Searching for Players (Users)
-        const { data, error: searchError } = await supabase
+      } else { // UPDATED: Searching for Players (Users) by username only
+        let query = supabase
           .from('users')
           .select(`
             id,
             username,
             email,
-            full_name,
             bio_text,
             phone_number,
             profile_picture_url,
             created_at,
             online_status,
             game_history_visibility,
-            location
+            location,
+            user_level
           `)
-          .ilike('username', `%${searchQuery}%`)
-          .or(`bio_text.ilike.%${searchQuery}%,location.ilike.%${searchQuery}%`); // Search across multiple fields
+          .ilike('username', `%${searchQuery}%`);
+
+        // Apply neq('id', currentUserId) ONLY if currentUserId is available
+        if (currentUserId) {
+            query = query.neq('id', currentUserId);
+        }
+
+        const { data, error: searchError } = await query;
 
         if (searchError) throw searchError;
-        setUsers(data as UserData[]);
+        if (data && Array.isArray(data)) {
+          setUsers(data as UserData[]);
+        } else {
+          setUsers([]);
+        }
       }
     } catch (err: any) {
       console.error('Error during search:', err.message);
@@ -202,11 +232,14 @@ export default function SearchScreen() {
     </ListItem.Swipeable>
   );
 
-  const renderPlayerItem = (user: UserData) => ( // Changed 'player' to 'user' for clarity
+  const renderPlayerItem = (user: UserData) => (
     <ListItem.Swipeable
       key={user.id}
       bottomDivider
-      onPress={() => Alert.alert('Player Profile', `View profile for: ${user.username || 'Unknown'}`)}
+      onPress={() => {
+        setSelectedUser(user);
+        setShowProfileModal(true);
+      }}
       leftContent={
         <Button
           title="Message"
@@ -232,7 +265,6 @@ export default function SearchScreen() {
       <ListItem.Content>
         <ListItem.Title style={styles.listItemTitle}>{user.username || 'No Username'}</ListItem.Title>
         <ListItem.Subtitle style={styles.listItemSubtitle}>
-          <Text style={styles.listItemSubtitle}>{user.full_name || 'No Name'} &middot; </Text>
           {user.online_status !== null && (
             <Text style={{ color: user.online_status ? 'green' : 'gray' }}>
               {user.online_status ? 'Online' : 'Offline'}
@@ -277,6 +309,8 @@ export default function SearchScreen() {
         onPress={(value) => {
           setSelectedIndex(value);
           setSearchQuery('');
+          setGames([]);
+          setUsers([]);
         }}
         containerStyle={styles.buttonGroupContainer}
         selectedButtonStyle={styles.selectedButtonGroupButton}
@@ -285,28 +319,38 @@ export default function SearchScreen() {
       />
 
       {error && <Text style={styles.errorText}>{error}</Text>}
-      {loading && games.length === 0 && Users.length === 0 ? (
+      {loading ? (
         <View style={styles.loadingListContainer}>
           <ActivityIndicator size="large" color="#0000ff" />
-          <Text>Loading data...</Text>
+          <Text>Searching...</Text>
         </View>
       ) : (
         <ScrollView style={styles.resultsContainer}>
           {selectedIndex === 0 ? (
             games.length === 0 ? (
-              <Text style={styles.noResultsText}>No games found. Try adjusting your search or filters.</Text>
+              <Text style={styles.noResultsText}>
+                {searchQuery ? "No games found. Try adjusting your search." : "Search for games to see results."}
+              </Text>
             ) : (
               games.map(renderGameItem)
             )
           ) : (
-            Users.length === 0 ? (
-              <Text style={styles.noResultsText}>No players found. Try adjusting your search or filters.</Text>
+            users.length === 0 ? (
+              <Text style={styles.noResultsText}>
+                {searchQuery ? "No players found. Try adjusting your search." : "Search for players to see results."}
+              </Text>
             ) : (
-              Users.map(renderPlayerItem)
+              users.map(renderPlayerItem)
             )
           )}
         </ScrollView>
       )}
+
+      <PlayerProfileModal
+        visible={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        userData={selectedUser}
+      />
     </View>
   );
 }
@@ -381,15 +425,156 @@ const styles = StyleSheet.create({
     color: '#888',
   },
   errorText: {
-    color: 'red',
     textAlign: 'center',
     marginTop: 20,
     fontSize: 16,
+    color: 'red',
   },
   loadingListContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 50,
+  },
+  centeredView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 35,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: '80%',
+    paddingTop: 70,
+    borderWidth: 2,
+    borderColor: '#D90106',
+  },
+  modalTitle: {
+    fontSize: 25,
+    fontWeight: 'bold',
+    marginBottom: 15,
+  },
+  bioContainer: {
+    width: '100%',
+    marginBottom: 15,
+    padding: 10,
+    backgroundColor: '#f8f8f8',
+    borderRadius: 10,
+  },
+  bioLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  bioText: {
+    fontSize: 16,
+    color: '#444',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  levelContainer: {
+    width: '100%',
+    marginBottom: 15,
+    padding: 10,
+    backgroundColor: '#f8f8f8',
+    borderRadius: 10,
+  },
+  levelLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  levelText: {
+    fontSize: 16,
+    color: '#444',
+  },
+  location: {
+    fontSize: 14,
+    color: '#666',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  onlineStatus: {
+    fontSize: 14,
+    marginBottom: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
+    backgroundColor: '#F2F2F7',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  closeButton: {
+    backgroundColor: '#ea2e3c',
+    borderRadius: 20,
+    padding: 10,
+    elevation: 2,
+    marginTop: 15,
+  },
+  closeButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  imageContainer: {
+    position: 'relative',
+    marginBottom: 10,
+  },
+  userIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  headerLevel: {
+    position: 'absolute',
+    top: 37,
+    right: 10,
+    zIndex: 1,
+  },
+  headerLocation: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 1,
+  },
+  level: {
+    fontSize: 14,
+    color: '#666',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
   },
 });

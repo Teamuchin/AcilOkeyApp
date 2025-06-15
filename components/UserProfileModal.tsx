@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, StyleSheet, TouchableOpacity, Image, FlatList, Dimensions, ActivityIndicator, TextInput } from 'react-native';
+import { Modal, View, Text, StyleSheet, TouchableOpacity, Image, FlatList, Dimensions, ActivityIndicator, TextInput, Alert } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { supabase } from '../lib/supabase';
 
@@ -25,7 +25,6 @@ interface UserData {
   id: string; // uuid (auth.uid())
   username: string | null; // text (can be null)
   email: string | null; // text (can be null)
-  full_name: string | null; // text (can be null)
   bio_text: string | null; // text (can be null)
   phone_number: string | null; // text (can be null)
   profile_picture_url: string | null; // text (can be null, usually stores URL)
@@ -34,6 +33,8 @@ interface UserData {
   game_history_visibility: boolean | null; // bool (can be null) - Using exact column name
   location: Location | null;
   user_level: UserLevel | null; // enum tipini belirtelim
+  isNewUser: boolean;
+
   // Note: rating, status (like 'online'), etc., were in previous Player interface
   // but are not explicitly in your 'users' table screenshot. Adjust as needed if you add them.
 }
@@ -57,6 +58,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
   const [showLevelSelector, setShowLevelSelector] = useState(false);
   const [editedUsername, setEditedUsername] = useState('');
   const [showLocationSelector, setShowLocationSelector] = useState(false);
+  const [isProfileComplete, setIsProfileComplete] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -69,6 +71,12 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
       setEditedUsername(userData?.username || '');
     }
   }, [isEditMode, userData?.username]);
+
+  useEffect(() => {
+    if (visible && userData?.isNewUser) {
+      setIsEditMode(true);
+    }
+  }, [visible, userData?.isNewUser]);
 
   const fetchUserData = async () => {
     try {
@@ -180,7 +188,42 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
     </TouchableOpacity>
   );
 
-  const handleClose = () => {
+  const checkProfileComplete = () => {
+    return !!(
+      userData?.username &&
+      userData?.location &&
+      userData?.user_level
+    );
+  };
+
+  const handleClose = async () => {
+    if (userData?.isNewUser && !checkProfileComplete()) {
+      Alert.alert(
+        'Complete Your Profile',
+        'Please fill in your username, location, and level before continuing.'
+      );
+      return;
+    }
+
+    if (userData?.isNewUser && checkProfileComplete()) {
+      try {
+        const { error } = await supabase
+          .from('users')
+          .update({ 
+            isNewUser: false,
+            username: editedUsername,
+            location: userData.location,
+            user_level: userData.user_level
+          })
+          .eq('id', userData.id);
+
+        if (error) throw error;
+      } catch (err: any) {
+        console.error('Error updating isNewUser:', err.message);
+        return;
+      }
+    }
+
     setIsEditMode(false);
     onClose();
   };
@@ -251,6 +294,25 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
                   )
                 )}
               </View>
+              <TouchableOpacity 
+                style={styles.editButton}
+                onPress={() => {
+                  if (isEditMode) {
+                    handleSaveBio();
+                  } else {
+                    setEditedBio(userData?.bio_text || '');
+                    setEditedUsername(userData?.username || '');
+                    setIsEditMode(true);
+                  }
+                }}
+              >
+                <MaterialIcons 
+                  name={isEditMode ? "save" : "edit"} 
+                  size={24} 
+                  color="#2196F3" 
+                />
+              </TouchableOpacity>
+
               <View style={styles.imageContainer}>
                 <Image 
                   source={selectedIcon} 
@@ -295,15 +357,16 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
                 </View>
               )}
 
-              <Text style={styles.onlineStatus}>
-                <View style={styles.statusIndicator}>
-                  <View style={[styles.statusDot, { backgroundColor: userData?.online_status ? '#34C759' : '#8E8E93' }]} />
-                  <Text style={styles.statusText}>{userData?.online_status ? 'Online' : 'Offline'}</Text>
-                </View>
-              </Text>
-              
-              <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
-                <Text style={styles.closeButtonText}>Close</Text>
+              <TouchableOpacity 
+                style={[
+                  styles.closeButton,
+                  userData?.isNewUser && !checkProfileComplete() && styles.disabledButton
+                ]} 
+                onPress={handleClose}
+              >
+                <Text style={styles.closeButtonText}>
+                  {userData?.isNewUser ? 'Complete Profile' : 'Close'}
+                </Text>
               </TouchableOpacity>
             </>
           )}
@@ -452,6 +515,10 @@ const styles = StyleSheet.create({
   level: {
     fontSize: 14,
     color: '#666',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
   },
   onlineStatus: {
     fontSize: 14,
@@ -621,6 +688,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     width: '100%',
     textAlign: 'center',
+  },
+  disabledButton: {
+    backgroundColor: '#ccc',
   },
 });
 

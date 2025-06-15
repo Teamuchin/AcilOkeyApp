@@ -16,7 +16,12 @@ AppState.addEventListener('change', (state) => {
   }
 })
 
-export default function Auth() {
+// Props interface'ini ekleyelim
+interface AuthProps {
+  onRegisterSuccess: () => void;
+}
+
+export default function Auth({ onRegisterSuccess }: AuthProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -50,7 +55,6 @@ export default function Auth() {
     })
 
     if (error) Alert.alert(error.message)
-    if (!session) Alert.alert('Please check your inbox for email verification!')
     setLoading(false)
   }
 
