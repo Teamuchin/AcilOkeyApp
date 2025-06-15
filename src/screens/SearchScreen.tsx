@@ -26,7 +26,6 @@ interface UserData {
   id: string; // uuid (auth.uid())
   username: string | null; // text (can be null)
   email: string | null; // text (can be null)
-  full_name: string | null; // text (can be null)
   bio_text: string | null; // text (can be null)
   phone_number: string | null; // text (can be null)
   profile_picture_url: string | null; // text (can be null, usually stores URL)
@@ -46,72 +45,33 @@ export default function SearchScreen() {
   const [Users, setUsers] = useState<UserData[]>([]); // Using UserData
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const fetchData = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      if (selectedIndex === 0) { // Fetch Games
-        const { data, error: gamesError } = await supabase
-          .from('Game')
-          .select(`
-            id,
-            title,
-            location_name,
-            start_time,
-            end_time,
-            required_players,
-            current_players,
-            description,
-            created_at,
-            game_status,
-            game_type
-          `);
-
-        if (gamesError) throw gamesError;
-        setGames(data as GameData[]);
-      } else { // Fetch Players (Users)
-        const { data, error: usersError } = await supabase
-          .from('users')
-          .select(`
-            id,
-            username,
-            email,
-            full_name,
-            bio_text,
-            phone_number,
-            profile_picture_url,
-            created_at,
-            online_status,
-            game_history_visibility,
-            location
-          `);
-
-        if (usersError) throw usersError;
-        setUsers(data as UserData[]);
-      }
-    } catch (err: any) {
-      console.error('Error fetching data from Supabase:', err.message);
-      setError('Failed to load data. Please try again.');
-      Alert.alert('Error', 'Failed to load data from Supabase: ' + err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchData();
-  }, [selectedIndex]);
+    // Get current user ID when component mounts
+    const getCurrentUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentUserId(user.id);
+      }
+    };
+    getCurrentUser();
+  }, []);
 
   const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      setGames([]);
+      setUsers([]);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      if (selectedIndex === 0) { // Searching for Games
+      if (selectedIndex === 0) { // Searching for Games (no change here)
         const { data, error: searchError } = await supabase
-          .from('games')
+          .from('Game') // Make sure this matches your table name exactly, e.g., 'games' or 'Game'
           .select(`
             id,
             title,
@@ -125,19 +85,17 @@ export default function SearchScreen() {
             game_status,
             game_type
           `)
-          .ilike('title', `%${searchQuery}%`)
-          .or(`location_name.ilike.%${searchQuery}%,game_type.ilike.%${searchQuery}%`); // Search across multiple fields
+          .or(`title.ilike.%${searchQuery}%,location_name.ilike.%${searchQuery}%,game_type.ilike.%${searchQuery}%`);
 
         if (searchError) throw searchError;
         setGames(data as GameData[]);
-      } else { // Searching for Players (Users)
+      } else { // UPDATED: Searching for Players (Users) by username only
         const { data, error: searchError } = await supabase
           .from('Users')
           .select(`
             id,
             username,
             email,
-            full_name,
             bio_text,
             phone_number,
             profile_picture_url,
@@ -146,8 +104,9 @@ export default function SearchScreen() {
             game_history_visibility,
             location
           `)
-          .ilike('username', `%${searchQuery}%`)
-          .or(`bio_text.ilike.%${searchQuery}%,location.ilike.%${searchQuery}%`); // Search across multiple fields
+          .neq('id', currentUserId) // Exclude current user
+          // The only change is this line:
+          .ilike('username', `%${searchQuery}%`); // Search only the username column
 
         if (searchError) throw searchError;
         setUsers(data as UserData[]);
@@ -232,7 +191,6 @@ export default function SearchScreen() {
       <ListItem.Content>
         <ListItem.Title style={styles.listItemTitle}>{user.username || 'No Username'}</ListItem.Title>
         <ListItem.Subtitle style={styles.listItemSubtitle}>
-          <Text style={styles.listItemSubtitle}>{user.full_name || 'No Name'} &middot; </Text>
           {user.online_status !== null && (
             <Text style={{ color: user.online_status ? 'green' : 'gray' }}>
               {user.online_status ? 'Online' : 'Offline'}
@@ -277,6 +235,8 @@ export default function SearchScreen() {
         onPress={(value) => {
           setSelectedIndex(value);
           setSearchQuery('');
+          setGames([]);
+          setUsers([]);
         }}
         containerStyle={styles.buttonGroupContainer}
         selectedButtonStyle={styles.selectedButtonGroupButton}
@@ -285,22 +245,26 @@ export default function SearchScreen() {
       />
 
       {error && <Text style={styles.errorText}>{error}</Text>}
-      {loading && games.length === 0 && Users.length === 0 ? (
+      {loading ? (
         <View style={styles.loadingListContainer}>
           <ActivityIndicator size="large" color="#0000ff" />
-          <Text>Loading data...</Text>
+          <Text>Searching...</Text>
         </View>
       ) : (
         <ScrollView style={styles.resultsContainer}>
           {selectedIndex === 0 ? (
             games.length === 0 ? (
-              <Text style={styles.noResultsText}>No games found. Try adjusting your search or filters.</Text>
+              <Text style={styles.noResultsText}>
+                {searchQuery ? "No games found. Try adjusting your search." : "Search for games to see results."}
+              </Text>
             ) : (
               games.map(renderGameItem)
             )
           ) : (
             Users.length === 0 ? (
-              <Text style={styles.noResultsText}>No players found. Try adjusting your search or filters.</Text>
+              <Text style={styles.noResultsText}>
+                {searchQuery ? "No players found. Try adjusting your search." : "Search for players to see results."}
+              </Text>
             ) : (
               Users.map(renderPlayerItem)
             )
