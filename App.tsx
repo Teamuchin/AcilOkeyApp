@@ -13,6 +13,7 @@ import { Button } from '@rneui/themed';
 import { Ionicons } from '@expo/vector-icons';
 import DropdownButton from './components/DropdownMenu';
 import NotificationModal from './components/NotificationModal';
+import UserProfileModal from './components/UserProfileModal';
 
 type RootStackParamList = {
   MainApp: undefined;
@@ -24,22 +25,22 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   useEffect(() => {
-    // Set loading to true initially
     setLoading(true);
     
-    // Check for an existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      // No need to set loading false here, onAuthStateChange will handle it
+      // Session varsa isNewUser kontrolü yap
+      if (session?.user) {
+        checkIsNewUser(session.user.id);
+      }
     });
 
-    // Listen for authentication state changes
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       
-      // NEW: Update online status on SIGNED_IN event
       if (_event === 'SIGNED_IN' && session) {
         try {
           await supabase
@@ -48,6 +49,8 @@ export default function App() {
               online_status: true,
             })
             .eq('id', session.user.id);
+          // Giriş yapıldığında isNewUser kontrolü yap
+          checkIsNewUser(session.user.id);
         } catch (error) {
           console.error('Error updating online status:', error);
         }
@@ -56,11 +59,30 @@ export default function App() {
       setLoading(false);
     });
 
-    // Cleanup function to remove the listener
     return () => {
       authListener?.subscription.unsubscribe();
     };
   }, []);
+
+  // isNewUser kontrolü için yeni fonksiyon
+  const checkIsNewUser = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('isNewUser')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+
+      // Sadece isNewUser true ise modal'ı göster
+      if (data?.isNewUser) {
+        setShowProfileModal(true);
+      }
+    } catch (error) {
+      console.error('Error checking isNewUser:', error);
+    }
+  };
 
   if (loading) {
     return (
@@ -101,6 +123,14 @@ export default function App() {
           <Stack.Screen name="Auth" component={Auth} options={{ headerShown: false }} />
         )}
       </Stack.Navigator>
+
+      {/* UserProfileModal'ı sadece isNewUser true ise göster */}
+      {session && session.user && showProfileModal && (
+        <UserProfileModal
+          visible={showProfileModal}
+          onClose={() => setShowProfileModal(false)}
+        />
+      )}
     </NavigationContainer>
   );
 }

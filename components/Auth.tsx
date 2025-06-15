@@ -48,7 +48,26 @@ export default function Auth() {
       password: password,
     })
 
-    if (error) Alert.alert(error.message)
+    if (error) {
+      Alert.alert(error.message)
+      setLoading(false)
+      return
+    }
+
+    if (session?.user) {
+      const { error: profileError } = await supabase
+        .from('users')
+        .update({ 
+          isNewUser: true,
+          online_status: true 
+        })
+        .eq('id', session.user.id)
+
+      if (profileError) {
+        console.error('Error setting isNewUser:', profileError)
+      }
+    }
+
     setLoading(false)
   }
 
