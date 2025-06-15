@@ -1,11 +1,13 @@
+// src/screens/SearchScreen.tsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal, Image, TouchableOpacity } from 'react-native';
 import { Input, Button, ButtonGroup, ListItem, Avatar } from '@rneui/themed';
 import { Icon } from '@rneui/themed';
 import { supabase } from '../../lib/supabase'; // Your Supabase client
 
-// --- Updated Interfaces for your Supabase data based on images ---
-// These should match your Supabase table schema exactly
+// --- Updated Interfaces for your Supabase data ---
+// Ensure these match your Supabase table schema exactly
+
 interface GameData {
   id: string; // uuid
   title: string; // text
@@ -16,21 +18,21 @@ interface GameData {
   current_players: number; // int2
   description: string | null; // text (can be null)
   created_at: string; // timestamp
-  game_status: 'open' | 'in_progress' | 'completed' | 'scheduled'; // Your game_stat ENUM values
-  game_type: 'regular' | 'tournament'; // Your game_typ ENUM values
-  // Note: organizer_id is a foreign key, but not directly in the games table columns you showed.
-  // We'll need to select it if it's there or handle joining.
+  game_status: 'Scheduled' | 'Open' | 'Completed' | 'Cancelled'; // Based on game_status enum
+  game_type: 'Beginner' | 'Intermediate' | 'Advanced' | 'Master'; // Based on user_level enum
 }
 
 interface UserData {
   id: string; // uuid (auth.uid())
   username: string | null; // text (can be null)
   email: string | null; // text (can be null)
+  // full_name: string | null; // Removed - as per your database change
   bio_text: string | null; // text (can be null)
   phone_number: string | null; // text (can be null)
   profile_picture_url: string | null; // text (can be null, usually stores URL)
   created_at: string; // timestamp
   online_status: boolean | null; // bool (can be null)
+  game_history_visibility: boolean | null; // bool (can be null)
   game_history_visibility: boolean | null; // bool (can be null)
   location: string | null; // text (can be null)
   user_level: 'Novice' | 'Skilled' | 'Expert' | null; // Yeni eklenen alan
@@ -91,7 +93,7 @@ export default function SearchScreen() {
   const [selectedIndex, setSelectedIndex] = useState(0); // 0 for Games, 1 for Players
   const [searchQuery, setSearchQuery] = useState('');
   const [games, setGames] = useState<GameData[]>([]); // Using GameData
-  const [Users, setUsers] = useState<UserData[]>([]); // Using UserData
+  const [users, setUsers] = useState<UserData[]>([]); // Using UserData
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -110,17 +112,25 @@ export default function SearchScreen() {
   }, []);
 
   const handleSearch = async () => {
+    // Optimization: if no search query, clear results immediately and return
     if (!searchQuery.trim()) {
       setGames([]);
       setUsers([]);
       return;
     }
 
+    // Add a check for currentUserId before performing player search
+    if (selectedIndex === 1 && currentUserId === null) {
+        Alert.alert("Error", "User data is still loading. Please try searching for players again in a moment.");
+        setLoading(false);
+        return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      if (selectedIndex === 0) { // Searching for Games (no change here)
+      if (selectedIndex === 0) { // Searching for Games
         const { data, error: searchError } = await supabase
           .from('Game') // Make sure this matches your table name exactly, e.g., 'games' or 'Game'
           .select(`
@@ -136,7 +146,8 @@ export default function SearchScreen() {
             game_status,
             game_type
           `)
-          .or(`title.ilike.%${searchQuery}%,location_name.ilike.%${searchQuery}%,game_type.ilike.%${searchQuery}%`);
+          // Filter by title and location_name only
+          .or(`title.ilike.%${searchQuery}%,location_name.ilike.%${searchQuery}%`);
 
         if (searchError) throw searchError;
         setGames(data as GameData[]);
@@ -156,12 +167,21 @@ export default function SearchScreen() {
             location,
             user_level
           `)
-          .neq('id', currentUserId) // Exclude current user
-          // The only change is this line:
-          .ilike('username', `%${searchQuery}%`); // Search only the username column
+          .ilike('username', `%${searchQuery}%`);
+
+        // Apply neq('id', currentUserId) ONLY if currentUserId is available
+        if (currentUserId) {
+            query = query.neq('id', currentUserId);
+        }
+
+        const { data, error: searchError } = await query;
 
         if (searchError) throw searchError;
-        setUsers(data as UserData[]);
+        if (data && Array.isArray(data)) {
+          setUsers(data as UserData[]);
+        } else {
+          setUsers([]);
+        }
       }
     } catch (err: any) {
       console.error('Error during search:', err.message);
@@ -316,12 +336,12 @@ export default function SearchScreen() {
               games.map(renderGameItem)
             )
           ) : (
-            Users.length === 0 ? (
+            users.length === 0 ? (
               <Text style={styles.noResultsText}>
                 {searchQuery ? "No players found. Try adjusting your search." : "Search for players to see results."}
               </Text>
             ) : (
-              Users.map(renderPlayerItem)
+              users.map(renderPlayerItem)
             )
           )}
         </ScrollView>
@@ -406,10 +426,10 @@ const styles = StyleSheet.create({
     color: '#888',
   },
   errorText: {
-    color: 'red',
     textAlign: 'center',
     marginTop: 20,
     fontSize: 16,
+    color: 'red',
   },
   loadingListContainer: {
     flex: 1,
