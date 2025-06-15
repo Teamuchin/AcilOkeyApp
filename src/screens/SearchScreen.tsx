@@ -33,7 +33,6 @@ interface UserData {
   created_at: string; // timestamp
   online_status: boolean | null; // bool (can be null)
   game_history_visibility: boolean | null; // bool (can be null)
-  game_history_visibility: boolean | null; // bool (can be null)
   location: string | null; // text (can be null)
   user_level: 'Novice' | 'Skilled' | 'Expert' | null; // Yeni eklenen alan
 }
@@ -152,7 +151,7 @@ export default function SearchScreen() {
         if (searchError) throw searchError;
         setGames(data as GameData[]);
       } else { // UPDATED: Searching for Players (Users) by username only
-        const { data, error: searchError } = await supabase
+        let query = supabase
           .from('users')
           .select(`
             id,
