@@ -96,6 +96,7 @@ export default function ChatListScreen() {
       />
       <ListItem.Content>
         <ListItem.Title style={styles.username}>{item.username || 'Unknown User'}</ListItem.Title>
+        <ListItem.Subtitle>Start a new conversation</ListItem.Subtitle>
       </ListItem.Content>
       <ListItem.Chevron />
     </ListItem>

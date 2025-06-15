@@ -19,7 +19,7 @@ export default function Profile({ session }: { session: Session }) {
       if (!session?.user) throw new Error('No user on the session!')
 
       const { data, error, status } = await supabase
-        .from('users')
+        .from('profiles')
         .select(`username`)
         .eq('id', session?.user.id)
         .single()

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Icon } from '@rneui/themed';
 import { Menu, MenuItem, MenuDivider } from 'react-native-material-menu';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabase'
 
 // Add UserProfileModal import
 import UserProfileModal from './UserProfileModal';
@@ -14,37 +14,6 @@ export default function CustomDropdownExample() {
 
   const showMenu = () => setVisible(true);
   const hideMenu = () => setVisible(false);
-
-  // NEW: Add the handleSignOut function here
-  const handleSignOut = async () => {
-    hideMenu();
-    try {
-      const { data: { user }, error: getUserError } = await supabase.auth.getUser();
-      if (getUserError) {
-        await supabase.auth.signOut();
-        return;
-      }
-  
-      if (user) {        
-        const { error: updateError } = await supabase
-          .from('users')
-          .update({ online_status: false })
-          .eq('id', user.id);
-  
-        if (updateError) {
-          // This is the most important log. If there is an error here, it will be displayed.
-        } else {
-        }
-      } else {
-        // This would be strange, but it's good to log it.
-      }
-    } catch (e) {
-        // This will catch any other unexpected errors in the process.
-    }
-  
-    await supabase.auth.signOut();
-  };
-
 
   const handleOptionPress = (option: string) => {
     hideMenu();
@@ -68,8 +37,7 @@ export default function CustomDropdownExample() {
         }
         style={styles.menuContainer}
       >
-        {/* UPDATED: The onPress prop now calls the new handleSignOut function */}
-        <MenuItem onPress={handleSignOut}>
+        <MenuItem onPress={() => supabase.auth.signOut()}>
           <Text style={styles.menuItemText}>Log Out</Text>
         </MenuItem>
         <MenuItem onPress={() => {
@@ -95,16 +63,32 @@ export default function CustomDropdownExample() {
 
 const styles = StyleSheet.create({
   container: {
-    // Styles remain the same
+    // These styles are for the container holding the menu button.
+    // If this component is placed in the header, these styles will define
+    // its position within the header.
+    // For a header icon, you often want minimal styling here,
+    // let the header control its position.
+    // example: If you place it on the right side of header, use:
+    // flex: 1,
+    // flexDirection: 'row',
+    // justifyContent: 'flex-end',
+    // alignItems: 'center',
+    // paddingRight: 10, // Adjust padding as needed
   },
   iconButton: {
     padding: 8,
-    borderRadius: 20,
+    borderRadius: 20, // Makes it a circular hit area
     backgroundColor: 'transparent',
+    // You might want to add margin/padding here if it's part of a row of icons
   },
   menuContainer: {
+    // Optional: Style the menu's background and appearance
     backgroundColor: 'white',
     borderRadius: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
     elevation: 5,
   },
   menuItemText: {
