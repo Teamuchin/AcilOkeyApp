@@ -22,10 +22,17 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.AcilOkeyApp",
-      "permissions": ["VIBRATE"]
+      "permissions": [
+        "VIBRATE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "61d6ac9f-7ecc-4974-b4b8-63e83767a1aa"
+      }
     }
   }
 }
