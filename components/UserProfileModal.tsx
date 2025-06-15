@@ -295,13 +295,6 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({ visible, onClose })
                 </View>
               )}
 
-              <Text style={styles.onlineStatus}>
-                <View style={styles.statusIndicator}>
-                  <View style={[styles.statusDot, { backgroundColor: userData?.online_status ? '#34C759' : '#8E8E93' }]} />
-                  <Text style={styles.statusText}>{userData?.online_status ? 'Online' : 'Offline'}</Text>
-                </View>
-              </Text>
-              
               <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
                 <Text style={styles.closeButtonText}>Close</Text>
               </TouchableOpacity>

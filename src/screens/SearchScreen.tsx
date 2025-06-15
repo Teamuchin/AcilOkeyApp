@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator, Modal, Image, TouchableOpacity } from 'react-native';
 import { Input, Button, ButtonGroup, ListItem, Avatar } from '@rneui/themed';
 import { Icon } from '@rneui/themed';
 import { supabase } from '../../lib/supabase'; // Your Supabase client
@@ -31,12 +31,61 @@ interface UserData {
   profile_picture_url: string | null; // text (can be null, usually stores URL)
   created_at: string; // timestamp
   online_status: boolean | null; // bool (can be null)
-  game_history_visibility: boolean | null; // bool (can be null) - Using exact column name
+  game_history_visibility: boolean | null; // bool (can be null)
   location: string | null; // text (can be null)
-  // Note: rating, status (like 'online'), etc., were in previous Player interface
-  // but are not explicitly in your 'users' table screenshot. Adjust as needed if you add them.
+  user_level: 'Novice' | 'Skilled' | 'Expert' | null; // Yeni eklenen alan
 }
 
+// Yeni bir PlayerProfileModal bileşeni ekleyelim
+const PlayerProfileModal = ({ visible, onClose, userData }: { 
+  visible: boolean; 
+  onClose: () => void; 
+  userData: UserData | null;
+}) => {
+  if (!visible || !userData) return null;
+
+  return (
+    <Modal
+      visible={visible}
+      animationType="slide"
+      transparent={true}
+      onRequestClose={onClose}
+    >
+      <View style={styles.centeredView}>
+        <View style={styles.modalView}>
+          <View style={styles.headerLevel}>
+            <Text style={styles.level}>🎯 {userData.user_level || 'Not set'}</Text>
+          </View>
+          <View style={styles.headerLocation}>
+            <Text style={styles.location}>📍{userData.location || 'Not set'}</Text>
+          </View>
+          <View style={styles.imageContainer}>
+            <Image 
+              source={userData.profile_picture_url ? { uri: userData.profile_picture_url } : require('../../assets/user-icon.png')} 
+              style={styles.userIcon}
+              resizeMode="contain"
+            />
+          </View>
+          
+          <Text style={styles.modalTitle}>{userData.username || 'No Username'}</Text>
+          
+          <Text style={styles.bioText}>{userData.bio_text || 'No bio available'}</Text>
+
+          <Text style={styles.onlineStatus}>
+            <View style={styles.statusIndicator}>
+              <View style={[styles.statusDot, { backgroundColor: userData.online_status ? '#34C759' : '#8E8E93' }]} />
+              <Text style={styles.statusText}>{userData.online_status ? 'Online' : 'Offline'}</Text>
+            </View>
+          </Text>
+          
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <Text style={styles.closeButtonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 export default function SearchScreen() {
   const [selectedIndex, setSelectedIndex] = useState(0); // 0 for Games, 1 for Players
@@ -46,6 +95,8 @@ export default function SearchScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserData | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   useEffect(() => {
     // Get current user ID when component mounts
@@ -102,7 +153,8 @@ export default function SearchScreen() {
             created_at,
             online_status,
             game_history_visibility,
-            location
+            location,
+            user_level
           `)
           .neq('id', currentUserId) // Exclude current user
           // The only change is this line:
@@ -161,11 +213,14 @@ export default function SearchScreen() {
     </ListItem.Swipeable>
   );
 
-  const renderPlayerItem = (user: UserData) => ( // Changed 'player' to 'user' for clarity
+  const renderPlayerItem = (user: UserData) => (
     <ListItem.Swipeable
       key={user.id}
       bottomDivider
-      onPress={() => Alert.alert('Player Profile', `View profile for: ${user.username || 'Unknown'}`)}
+      onPress={() => {
+        setSelectedUser(user);
+        setShowProfileModal(true);
+      }}
       leftContent={
         <Button
           title="Message"
@@ -271,6 +326,12 @@ export default function SearchScreen() {
           )}
         </ScrollView>
       )}
+
+      <PlayerProfileModal
+        visible={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        userData={selectedUser}
+      />
     </View>
   );
 }
@@ -355,5 +416,146 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginTop: 50,
+  },
+  centeredView: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 35,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+    width: '80%',
+    paddingTop: 70,
+    borderWidth: 2,
+    borderColor: '#D90106',
+  },
+  modalTitle: {
+    fontSize: 25,
+    fontWeight: 'bold',
+    marginBottom: 15,
+  },
+  bioContainer: {
+    width: '100%',
+    marginBottom: 15,
+    padding: 10,
+    backgroundColor: '#f8f8f8',
+    borderRadius: 10,
+  },
+  bioLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  bioText: {
+    fontSize: 16,
+    color: '#444',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginBottom: 15,
+  },
+  levelContainer: {
+    width: '100%',
+    marginBottom: 15,
+    padding: 10,
+    backgroundColor: '#f8f8f8',
+    borderRadius: 10,
+  },
+  levelLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 5,
+  },
+  levelText: {
+    fontSize: 16,
+    color: '#444',
+  },
+  location: {
+    fontSize: 14,
+    color: '#666',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
+  },
+  onlineStatus: {
+    fontSize: 14,
+    marginBottom: 15,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statusIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 15,
+    backgroundColor: '#F2F2F7',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
+    fontSize: 14,
+    color: '#666',
+  },
+  closeButton: {
+    backgroundColor: '#ea2e3c',
+    borderRadius: 20,
+    padding: 10,
+    elevation: 2,
+    marginTop: 15,
+  },
+  closeButtonText: {
+    color: 'white',
+    fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  imageContainer: {
+    position: 'relative',
+    marginBottom: 10,
+  },
+  userIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+  },
+  headerLevel: {
+    position: 'absolute',
+    top: 37,
+    right: 10,
+    zIndex: 1,
+  },
+  headerLocation: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    zIndex: 1,
+  },
+  level: {
+    fontSize: 14,
+    color: '#666',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 10,
   },
 });
