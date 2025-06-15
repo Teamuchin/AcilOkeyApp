@@ -1,13 +1,13 @@
 // src/screens/MyGamesScreen.tsx
-import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback for fetchUserGames
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { supabase } from '../../lib/supabase'
 import { Button, Icon } from '@rneui/themed'
-import { useNavigation, useFocusEffect } from '@react-navigation/native'; // Import useFocusEffect
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 // Import new components
-import CreateGameModal from '../../components/CreateGameModal'; // Assuming path
-import GameParticipantsModal from '../../components/GameParticipantsModal'; // Import GameParticipantsModal
+import CreateGameModal from '../../components/CreateGameModal';
+import GameParticipantsModal from '../../components/GameParticipantsModal';
 
 // --- Updated Game Type to match Supabase schemas ---
 interface GameData {
@@ -21,8 +21,6 @@ interface GameData {
   current_players: number;
   description: string | null;
   game_status: string;
-  // If you want organizer's name directly, add it to select query with join
-  // organizer_username?: string;
 }
 
 // Data fetched will be an array of GameData
@@ -34,8 +32,8 @@ export default function MyGamesScreen() {
   const [error, setError] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isCreateGameModalVisible, setCreateGameModalVisible] = useState(false);
-  const [isParticipantsModalVisible, setParticipantsModalVisible] = useState(false); // State for participants modal
-  const [selectedGameForParticipants, setSelectedGameForParticipants] = useState<GameListItem | null>(null); // To pass game details
+  const [isParticipantsModalVisible, setParticipantsModalVisible] = useState(false);
+  const [selectedGameForParticipants, setSelectedGameForParticipants] = useState<GameListItem | null>(null);
 
   const navigation = useNavigation();
 
@@ -47,7 +45,6 @@ export default function MyGamesScreen() {
   }, []);
 
   // Fetch games when component mounts or user ID changes OR screen comes into focus
-  // Wrapped in useCallback for useFocusEffect
   const fetchUserGames = useCallback(async () => {
     if (!currentUserId) {
       setLoading(false);
@@ -77,13 +74,14 @@ export default function MyGamesScreen() {
             )
           `)
         .eq('user_id', currentUserId)
-        .order('Game(start_time)', { ascending: true }); // Ensure 'Game' matches table name case
+        .order('Game(start_time)', { ascending: true });
 
       if (fetchError) throw fetchError;
 
       // Filter out null games (in case of a dangling foreign key or RLS)
       const userGames: GameListItem[] = data
-        .filter(gp => gp.Game !== null) // Filter out any null game objects if the join failed for a row
+        .filter(gp => gp.Game !== null)
+        .filter((gp: any) => gp.Game.game_status !== 'cancelled') // Filter out cancelled games
         .map((gp: any) => ({
           ...gp.Game,
           players: `<span class="math-inline">\{gp\.Game\.current\_players\}/</span>{gp.Game.required_players} Players`
@@ -97,63 +95,87 @@ export default function MyGamesScreen() {
     } finally {
       setLoading(false);
     }
-  }, [currentUserId]); // currentUserId is the dependency for this useCallback
+  }, [currentUserId]);
 
-  // Use useFocusEffect to call fetchUserGames whenever the screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      if (currentUserId) { // Only fetch if current user ID is available
+      if (currentUserId) {
         fetchUserGames();
       }
       return () => {
-        // Optional cleanup function if needed when screen blurs
+        // Optional cleanup function
       };
-    }, [currentUserId, fetchUserGames]) // Depend on currentUserId and fetchUserGames
+    }, [currentUserId, fetchUserGames])
   );
 
 
-  // --- NEW: handleLeaveGame function ---
+  // --- handleLeaveGame function (unchanged) ---
   const handleLeaveGame = (gameId: string, gameTitle: string) => {
     Alert.alert(
       "Leave Game",
       `Are you sure you want to leave "${gameTitle}"?`,
       [
-        {
-          text: "Cancel",
-          style: "cancel"
-        },
+        { text: "Cancel", style: "cancel" },
         {
           text: "Leave",
           onPress: async () => {
-            if (!currentUserId) {
-              Alert.alert("Error", "You must be logged in to leave a game.");
-              return;
-            }
-            setLoading(true); // Show loading while processing
+            if (!currentUserId) { Alert.alert("Error", "You must be logged in to leave a game."); return; }
+            setLoading(true);
             try {
-              // 1. Delete record from Game_Participants
               const { error: deleteError } = await supabase
                 .from('Game_Participants')
                 .delete()
                 .eq('game_id', gameId)
-                .eq('user_id', currentUserId); // Crucially, delete by both game_id AND user_id
-
+                .eq('user_id', currentUserId);
               if (deleteError) throw deleteError;
 
-              // 2. Decrement current_players count in the Game table using RPC
               const { error: updateGameError } = await supabase
-                .rpc('decrement_current_players', { _game_id: gameId }); // Call the RPC function
-
-              if (updateGameError) {
-                console.warn('Warning: Could not decrement game players count:', updateGameError.message);
-                Alert.alert('Warning', 'Game left, but players count might not be updated.');
-              }
+                .rpc('decrement_current_players', { _game_id: gameId });
+              if (updateGameError) { console.warn('Warning: Could not decrement game players count:', updateGameError.message); }
 
               Alert.alert("Success", `You have left "${gameTitle}".`);
-              fetchUserGames(); // Refresh the list of games after leaving
+              fetchUserGames();
             } catch (err: any) {
               console.error('Error leaving game:', err.message);
               Alert.alert("Error", `Failed to leave "${gameTitle}": ` + err.message);
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+
+  // --- NEW: handleCloseGame function ---
+  const handleCloseGame = (gameId: string, gameTitle: string) => {
+    Alert.alert(
+      "Close Game",
+      `Are you sure you want to close "${gameTitle}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Close",
+          onPress: async () => {
+            if (!currentUserId) {
+              Alert.alert("Error", "You must be logged in to close a game.");
+              return;
+            }
+            setLoading(true); // Show loading while processing
+            try {
+              // 1. Update game_status to 'Completed' (or 'Cancelled' as needed)
+              const { error: updateError } = await supabase
+                .from('Game')
+                .update({ game_status: 'cancelled' }) // Set status to 'Completed'
+                .eq('id', gameId)
+              if (updateError) throw updateError;
+
+              Alert.alert("Success", `"${gameTitle}" has been closed!`);
+              fetchUserGames(); // Refresh the list of games
+            } catch (err: any) {
+              console.error('Error closing game:', err.message);
+              Alert.alert("Error", `Failed to close "${gameTitle}": ` + err.message);
             } finally {
               setLoading(false);
             }
@@ -178,7 +200,7 @@ export default function MyGamesScreen() {
       <Text style={styles.players}>{item.current_players}/{item.required_players} Players</Text>
       <View style={styles.buttonRow}>
         <Button
-          title="Participants" // Changed button title
+          title="Participants"
           type="outline"
           buttonStyle={styles.groupChatBtn}
           titleStyle={{ color: '#ea2e3c' }}
@@ -187,13 +209,25 @@ export default function MyGamesScreen() {
             setParticipantsModalVisible(true);
           }}
         />
-        <Button
-          title="Leave Game"
-          type="clear"
-          buttonStyle={styles.leaveGameBtn}
-          titleStyle={{ color: '#ea2e3c' }}
-          onPress={() => handleLeaveGame(item.id, item.title)}
-        />
+        {/* Conditionally render "Leave Game" or "Close Game" */}
+        {(
+          <>
+            <Button
+              title="Close Game"
+              type="solid"
+              buttonStyle={[styles.leaveGameBtn, { backgroundColor: '#FFD700' }]}
+              titleStyle={{ color: '#333' }}
+              onPress={() => handleCloseGame(item.id, item.title)}
+            />
+            <Button
+              title="Leave Game"
+              type="clear"
+              buttonStyle={styles.leaveGameBtn}
+              titleStyle={{ color: '#ea2e3c' }}
+              onPress={() => handleLeaveGame(item.id, item.title)}
+            />
+          </>
+        )}
       </View>
     </View>
   );
@@ -225,7 +259,7 @@ export default function MyGamesScreen() {
       </View>
 
       <FlatList
-        data={games} // Use fetched games
+        data={games}
         renderItem={renderGame}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.gamesList}
@@ -241,19 +275,19 @@ export default function MyGamesScreen() {
       <CreateGameModal
         visible={isCreateGameModalVisible}
         onClose={() => setCreateGameModalVisible(false)}
-        onGameCreated={fetchUserGames} // Re-fetch games after new game is created
+        onGameCreated={fetchUserGames}
         currentUserId={currentUserId}
       />
 
       {/* Game Participants Modal */}
-      {selectedGameForParticipants && ( // Only render if a game is selected
+      {selectedGameForParticipants && (
         <GameParticipantsModal
           visible={isParticipantsModalVisible}
           onClose={() => {
             setParticipantsModalVisible(false);
-            setSelectedGameForParticipants(null); // Clear selected game when closed
+            setSelectedGameForParticipants(null);
           }}
-          game={selectedGameForParticipants} // Pass the selected game object
+          game={selectedGameForParticipants}
           currentUserId={currentUserId}
         />
       )}
@@ -355,9 +389,7 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
   leaveGameBtn: {
-    // Styling for Leave Game button (type="clear" uses text color as primary)
-    // To give it a background, you might need to use type="solid" with a light color
-    // or add a subtle background here if it's meant to be different from clear.
+    // Styling for Leave Game button
   },
   loadingContainer: {
     flex: 1,

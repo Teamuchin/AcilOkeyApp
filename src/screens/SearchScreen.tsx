@@ -33,7 +33,12 @@ interface UserData {
   online_status: boolean | null; // bool (can be null)
   game_history_visibility: boolean | null; // bool (can be null)
   location: string | null; // text (can be null)
-  user_level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Master' | null; // Added based on your latest image for user_level
+  user_level: 'Beginner' | 'Intermediate' | 'Advanced' | 'Master' | null; // User level enum
+
+  // NEW: Friendship status related to the current user (client-side derived)
+  friendship_status?: 'not_friends' | 'pending_sent' | 'pending_received' | 'accepted' | 'rejected' | 'self';
+  // NEW: Storing requester_id from the Friendship record (client-side derived, for pending_received/sent)
+  friendship_requester_id?: string;
 }
 
 // --- PlayerProfileModal Component (Nested within SearchScreen) ---
@@ -53,7 +58,6 @@ const PlayerProfileModal = ({ visible, onClose, userData }: {
     >
       <View style={styles.centeredView}>
         <View style={styles.modalView}>
-          {/* Level and Location at the top right/left */}
           <View style={styles.headerLevel}>
             <Text style={styles.levelBadge}>🎯 {userData.user_level || 'Not set'}</Text>
           </View>
@@ -61,7 +65,6 @@ const PlayerProfileModal = ({ visible, onClose, userData }: {
             <Text style={styles.locationBadge}>📍{userData.location || 'Not set'}</Text>
           </View>
 
-          {/* User Image */}
           <View style={styles.imageContainer}>
             <Image
               source={userData.profile_picture_url ? { uri: userData.profile_picture_url } : require('../../assets/user-icon.png')}
@@ -70,13 +73,10 @@ const PlayerProfileModal = ({ visible, onClose, userData }: {
             />
           </View>
 
-          {/* Username */}
           <Text style={styles.modalTitle}>{userData.username || 'No Username'}</Text>
 
-          {/* Bio Text */}
           <Text style={styles.bioText}>{userData.bio_text || 'No bio available'}</Text>
 
-          {/* Online Status */}
           <Text style={styles.onlineStatus}>
             <View style={styles.statusIndicator}>
               <View style={[styles.statusDot, { backgroundColor: userData.online_status ? '#34C759' : '#8E8E93' }]} />
@@ -84,7 +84,6 @@ const PlayerProfileModal = ({ visible, onClose, userData }: {
             </View>
           </Text>
 
-          {/* Close Button */}
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <Text style={styles.closeButtonText}>Close</Text>
           </TouchableOpacity>
@@ -152,8 +151,9 @@ export default function SearchScreen() {
             game_status,
             game_type
           `)
-          // Filter by title and location_name only
-          .or(`title.ilike.%${searchQuery}%,location_name.ilike.%${searchQuery}%`);
+          // Filter by title and location_name only, and exclude cancelled games
+          .or(`title.ilike.%${searchQuery}%,location_name.ilike.%${searchQuery}%`)
+          .neq('game_status', 'cancelled');
 
         if (searchError) throw searchError;
         setGames(data as GameData[]);
@@ -181,11 +181,50 @@ export default function SearchScreen() {
         const { data, error: searchError } = await query;
 
         if (searchError) throw searchError;
-        if (data && Array.isArray(data)) {
-          setUsers(data as UserData[]);
-        } else {
-          setUsers([]);
-        }
+
+        // --- Fetch friendship status for each user ---
+        const usersWithFriendshipStatus = await Promise.all(
+          (data as UserData[]).map(async (user) => {
+            if (!currentUserId || user.id === currentUserId) {
+              return { ...user, friendship_status: 'self' } as UserData;
+            }
+
+            // Determine user_id_1 and user_id_2 for consistent query
+            const id1 = currentUserId < user.id ? currentUserId : user.id;
+            const id2 = currentUserId < user.id ? user.id : currentUserId;
+
+            const { data: friendshipData, error: friendshipError } = await supabase
+              .from('Friendships')
+              .select('status, user_id_1, user_id_2, requester_id')
+              .eq('user_id_1', id1)
+              .eq('user_id_2', id2)
+              .single();
+
+            if (friendshipError && friendshipError.code === 'PGRST116') {
+              return { ...user, friendship_status: 'not_friends' } as UserData;
+            } else if (friendshipError) {
+              console.error('Error fetching friendship status for user', user.id, friendshipError.message);
+              return { ...user, friendship_status: 'not_friends' } as UserData;
+            }
+
+            if (friendshipData) {
+              const baseUser = { ...user, friendship_requester_id: friendshipData.requester_id };
+              if (friendshipData.status === 'accepted') {
+                return { ...baseUser, friendship_status: 'accepted' } as UserData;
+              } else if (friendshipData.status === 'pending') {
+                if (friendshipData.requester_id === currentUserId) {
+                  return { ...baseUser, friendship_status: 'pending_sent' } as UserData;
+                } else {
+                  return { ...baseUser, friendship_status: 'pending_received' } as UserData;
+                }
+              } else if (friendshipData.status === 'rejected') {
+                return { ...baseUser, friendship_status: 'rejected' } as UserData;
+              }
+            }
+            return { ...user, friendship_status: 'not_friends' } as UserData;
+          })
+        );
+        setUsers(usersWithFriendshipStatus);
       }
     } catch (err: any) {
       console.error('Error during search:', err.message);
@@ -196,16 +235,73 @@ export default function SearchScreen() {
     }
   };
 
-  // --- NEW: handleJoinGame function ---
+  // --- Friendship Actions ---
+  const sendFriendRequest = async (targetUserId: string, targetUsername: string | null) => {
+    if (!currentUserId) {
+      Alert.alert('Error', 'You must be logged in to send friend requests.');
+      return;
+    }
+    setLoading(true);
+    try {
+      // Enforce user_id_1 < user_id_2 for consistency
+      const id1 = currentUserId < targetUserId ? currentUserId : targetUserId;
+      const id2 = currentUserId < targetUserId ? targetUserId : currentUserId;
+      const status = 'pending';
+
+      const { error } = await supabase
+        .from('Friendships')
+        .insert({ user_id_1: id1, user_id_2: id2, status: status, requester_id: currentUserId, created_at: new Date().toISOString() });
+
+      if (error) throw error;
+      Alert.alert('Request Sent', `Friend request sent to ${targetUsername || 'user'}.`);
+      handleSearch(); // Refresh search results to update button status
+    } catch (error: any) {
+      console.error('Error sending friend request:', error.message);
+      Alert.alert('Error', 'Failed to send friend request: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const updateFriendRequest = async (targetUserId: string, newStatus: 'accepted' | 'rejected') => {
+    if (!currentUserId) {
+      Alert.alert('Error', 'You must be logged in to respond to friend requests.');
+      return;
+    }
+    setLoading(true);
+    try {
+      // Find the correct friendship record based on consistent ordering
+      const id1 = currentUserId < targetUserId ? currentUserId : targetUserId;
+      const id2 = currentUserId < targetUserId ? targetUserId : currentUserId;
+
+      const { error } = await supabase
+        .from('Friendships')
+        .update({ status: newStatus })
+        .eq('user_id_1', id1)
+        .eq('user_id_2', id2)
+        .eq('status', 'pending'); // Only update pending requests
+
+      if (error) throw error;
+      Alert.alert('Success', `Friend request ${newStatus}.`);
+      handleSearch(); // Refresh search results to update button status
+    } catch (error: any) {
+      console.error('Error updating friend request:', error.message);
+      Alert.alert('Error', `Failed to ${newStatus} friend request: ` + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+  // --- handleJoinGame function ---
   const handleJoinGame = async (gameId: string, gameTitle: string) => {
     if (!currentUserId) {
       Alert.alert("Error", "You must be logged in to join a game.");
       return;
     }
 
-    setLoading(true); // Show loading while processing
+    setLoading(true);
     try {
-      // 1. Check if user is already a participant (optional but good practice)
       const { data: existingParticipants, error: checkError } = await supabase
         .from('Game_Participants')
         .select('user_id')
@@ -220,21 +316,19 @@ export default function SearchScreen() {
         return;
       }
 
-      // 2. Insert new record into Game_Participants
       const { error: insertError } = await supabase
         .from('Game_Participants')
         .insert({
           game_id: gameId,
           user_id: currentUserId,
           joined_at: new Date().toISOString(),
-          status: 'Joined', // Or whatever your default status for joining is
+          status: 'Joined',
         });
 
       if (insertError) throw insertError;
 
-      // 3. Increment current_players count in the Game table using RPC
       const { error: updateGameError } = await supabase
-        .rpc('increment_current_players', { _game_id: gameId }); // Call the RPC function
+        .rpc('increment_current_players', { _game_id: gameId });
 
       if (updateGameError) {
         console.warn('Warning: Could not increment game players count:', updateGameError.message);
@@ -242,9 +336,7 @@ export default function SearchScreen() {
       }
 
       Alert.alert("Success", `You have joined "${gameTitle}"!`);
-      // Refresh the list of games to reflect the change
-      // Re-run the search to update counts and show changed status if needed
-      handleSearch(); 
+      handleSearch();
     } catch (err: any) {
       console.error('Error joining game:', err.message);
       Alert.alert("Error", `Failed to join "${gameTitle}": ` + err.message);
@@ -258,16 +350,15 @@ export default function SearchScreen() {
 
   const renderGameItem = (game: GameData) => (
     <ListItem
-      key={game.id} // Key prop for ListItem
+      key={game.id}
       bottomDivider
-      onPress={() => Alert.alert('Game Details', `View details for: ${game.title}`)} // Main press for ListItem
+      onPress={() => Alert.alert('Game Details', `View details for: ${game.title}`)}
     >
       <ListItem.Content>
         <ListItem.Title style={styles.listItemTitle}>{game.title}</ListItem.Title>
         <ListItem.Subtitle style={styles.listItemSubtitle}>
           <Icon name="medal-outline" type="ionicon" size={14} color="#555" /> {game.game_type} &middot;
           <Icon name="location-outline" type="ionicon" size={14} color="#555" /> {game.location_name}
-          {/* Implement distance calculation here if needed */}
         </ListItem.Subtitle>
         <Text style={styles.listItemPlayers}>
           <Icon name="people" type="material" size={14} color="#555" /> {game.current_players}/{game.required_players} players
@@ -276,64 +367,93 @@ export default function SearchScreen() {
         <Text style={styles.listItemSubtitle}>Status: {game.game_status}</Text>
         {game.description && <Text style={styles.playerBio}>Description: {game.description}</Text>}
       </ListItem.Content>
-      {/* --- Always visible Join Button --- */}
       <View style={styles.gameActionButtonContainer}>
         <Button
           title="Join"
-          buttonStyle={styles.joinButton} // Apply specific style for the join button
+          buttonStyle={styles.joinButton}
           titleStyle={styles.joinButtonTitle}
-          onPress={() => handleJoinGame(game.id, game.title)} // Call handleJoinGame
+          onPress={() => handleJoinGame(game.id, game.title)}
         />
       </View>
-      <ListItem.Chevron /> {/* Optional chevron */}
+      <ListItem.Chevron />
     </ListItem>
   );
 
-  const renderPlayerItem = (user: UserData) => (
-    <ListItem.Swipeable
-      key={user.id}
-      bottomDivider
-      onPress={() => {
-        setSelectedUser(user); // Set the user data for the modal
-        setShowProfileModal(true); // Open the modal
-      }}
-      leftContent={
-        <Button
-          title="Message"
-          icon={{ name: 'chatbox-outline', type: 'ionicon', color: 'white' }}
-          buttonStyle={styles.swipeButton}
+  const renderPlayerItem = (user: UserData) => {
+    // No longer using ListItem.Swipeable for players, direct ListItem
+    return (
+      <ListItem
+        key={user.id}
+        bottomDivider
+        onPress={() => {
+          setSelectedUser(user); // Set the user data for the modal
+          setShowProfileModal(true); // Open the modal
+        }}
+      >
+        <Avatar
+          source={user.profile_picture_url ? { uri: user.profile_picture_url } : require('../../assets/user-icon.png')}
+          rounded
+          size="medium"
+          containerStyle={styles.avatarContainer}
         />
-      }
-      rightContent={
-        <Button
-          title="Add Friend"
-          icon={{ name: 'person-add-outline', type: 'ionicon', color: 'white' }}
-          buttonStyle={[styles.swipeButton, { backgroundColor: '#007bff' }]}
-          onPress={() => Alert.alert('Add Friend', `Send request to ${user.username || 'Unknown'}?`)}
-        />
-      }
-    >
-      <Avatar
-        source={user.profile_picture_url ? { uri: user.profile_picture_url } : require('../../assets/user-icon.png')}
-        rounded
-        size="medium"
-        containerStyle={styles.avatarContainer}
-      />
-      <ListItem.Content>
-        <ListItem.Title style={styles.listItemTitle}>{user.username || 'No Username'}</ListItem.Title>
-        <ListItem.Subtitle style={styles.listItemSubtitle}>
-          {user.online_status !== null && (
-            <Text style={{ color: user.online_status ? 'green' : 'gray' }}>
-              {user.online_status ? 'Online' : 'Offline'}
-            </Text>
+        <ListItem.Content>
+          <ListItem.Title style={styles.listItemTitle}>{user.username || 'No Username'}</ListItem.Title>
+          <ListItem.Subtitle style={styles.listItemSubtitle}>
+            {user.online_status !== null && (
+              <Text style={{ color: user.online_status ? 'green' : 'gray' }}>
+                {user.online_status ? 'Online' : 'Offline'}
+              </Text>
+            )}
+            {user.location && <Text> &middot; {user.location}</Text>}
+          </ListItem.Subtitle>
+          {user.bio_text && <Text style={styles.playerBio}>{user.bio_text}</Text>}
+        </ListItem.Content>
+        {/* --- Friendship Buttons (Always visible, NOT in swipeable) --- */}
+        <View style={styles.playerActionButtonsContainer}>
+          {user.id === currentUserId ? (
+            <Text style={styles.selfText}>You</Text>
+          ) : user.friendship_status === 'pending_received' ? (
+            <View style={styles.friendRequestButtons}>
+              <Button
+                title="Accept"
+                onPress={() => updateFriendRequest(user.id, 'accepted')}
+                buttonStyle={styles.acceptButton}
+                titleStyle={styles.friendshipButtonTitle}
+              />
+              <Button
+                title="Reject"
+                onPress={() => updateFriendRequest(user.id, 'rejected')}
+                buttonStyle={styles.rejectButton}
+                titleStyle={styles.friendshipButtonTitle}
+              />
+            </View>
+          ) : user.friendship_status === 'pending_sent' ? (
+            <Button
+              title="Pending"
+              disabled={true}
+              buttonStyle={styles.pendingButton}
+              titleStyle={styles.friendshipButtonTitle}
+            />
+          ) : user.friendship_status === 'accepted' ? (
+            <Button
+              title="Friends"
+              disabled={true}
+              buttonStyle={styles.friendsButton}
+              titleStyle={styles.friendshipButtonTitle}
+            />
+          ) : ( // 'not_friends' or 'rejected'
+            <Button
+              title="Add Friend"
+              onPress={() => sendFriendRequest(user.id, user.username)}
+              buttonStyle={styles.addFriendButton}
+              titleStyle={styles.friendshipButtonTitle}
+            />
           )}
-          {user.location && <Text> &middot; {user.location}</Text>}
-        </ListItem.Subtitle>
-        {user.bio_text && <Text style={styles.playerBio}>{user.bio_text}</Text>}
-      </ListItem.Content>
-      <ListItem.Chevron />
-    </ListItem.Swipeable>
-  );
+        </View>
+        <ListItem.Chevron />
+      </ListItem>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -403,11 +523,10 @@ export default function SearchScreen() {
         </ScrollView>
       )}
 
-      {/* Player Profile Modal */}
       <PlayerProfileModal
         visible={showProfileModal}
         onClose={() => setShowProfileModal(false)}
-        userData={selectedUser} // Pass the selected user's data to the modal
+        userData={selectedUser}
       />
     </View>
   );
@@ -660,5 +779,55 @@ const styles = StyleSheet.create({
   },
   swipeButton: { // Style for Message/Add Friend buttons on player items
     minHeight: '100%', // Ensures button fills height of ListItem
+  },
+  // NEW styles for friendship buttons (always visible)
+  playerActionButtonsContainer: {
+    flexDirection: 'row', // Arrange buttons horizontally
+    alignItems: 'center',
+    // Adjust width or spacing to fit nicely within ListItem
+    // maxWidth: 150, // Example: Limit width if too wide
+  },
+  friendRequestButtons: { // For Accept/Reject group
+    flexDirection: 'row',
+    gap: 5, // Space between Accept and Reject
+  },
+  addFriendButton: {
+    backgroundColor: '#007bff', // Blue for Add Friend
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 5,
+  },
+  acceptButton: {
+    backgroundColor: '#34C759', // Green for Accept
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 5,
+  },
+  rejectButton: {
+    backgroundColor: '#FF3B30', // Red for Reject
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 5,
+  },
+  pendingButton: {
+    backgroundColor: '#FFCC00', // Yellow for Pending
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 5,
+  },
+  friendsButton: {
+    backgroundColor: '#555', // Grey for Friends
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 5,
+  },
+  friendshipButtonTitle: {
+    fontSize: 12, // Smaller text for compact buttons
+    color: 'white',
+  },
+  selfText: {
+    fontSize: 14,
+    color: '#888',
+    paddingHorizontal: 10, // Align with button padding
   },
 });

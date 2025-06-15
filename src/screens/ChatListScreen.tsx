@@ -65,11 +65,25 @@ export default function ChatListScreen() {
       setLoading(true);
       setError(null);
       try {
-        // Fetch all users (excluding the current user) to show as potential chat partners
+        // Fetch only accepted friends to show as chat partners
+        const { data: friendsData, error: friendsError } = await supabase
+          .from('Friendships')
+          .select('user_id_1, user_id_2')
+          .or(`user_id_1.eq.${currentUserId},user_id_2.eq.${currentUserId}`)
+          .eq('status', 'accepted');
+
+        if (friendsError) throw friendsError;
+
+        // Get the friend IDs (the ones that aren't the current user)
+        const friendIds = friendsData.map(friendship => 
+          friendship.user_id_1 === currentUserId ? friendship.user_id_2 : friendship.user_id_1
+        );
+
+        // Fetch the user details for the friends
         const { data, error: fetchError } = await supabase
           .from('users')
           .select('id, username, profile_picture_url')
-          .neq('id', currentUserId); // Now currentUserId is guaranteed to be a string here
+          .in('id', friendIds);
 
         if (fetchError) throw fetchError;
         setUsers(data as UserContact[]);
