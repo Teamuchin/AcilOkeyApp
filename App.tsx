@@ -14,7 +14,6 @@ import { Button } from '@rneui/themed'; // If using RNElements buttons
 import { Ionicons } from '@expo/vector-icons'; // For icons
 import DropdownButton from './components/DropdownMenu';
 import NotificationModal from './components/NotificationModal';
-import WigglingOkeyTile from './components/WigglingOkeyTile'; // Add this import
 
 type RootStackParamList = {
   MainApp: undefined;
@@ -55,24 +54,17 @@ export default function App() {
             name="MainApp"
             component={BottomTabNavigator}
             options={{ 
-              title: '', // Remove title to make room for custom header
+              title: 'Acil Okey',
               headerStyle: {
                 backgroundColor: '#D90106',
-                height: 100, // Make header taller to accommodate tile
               },
               headerTintColor: '#fff',
               headerTitleStyle: {
                 fontWeight: 'bold',
                 fontFamily: 'Poppins-Bold',
               },
-              headerLeft: () => (
-                <View style={headerstyles.leftContainer}>
-                  <WigglingOkeyTile value={1} size="small" />
-                  <Text style={headerstyles.titleText}>Acil Okey</Text>
-                </View>
-              ),
               headerRight: () => (
-                <View style={headerstyles.rightContainer}>
+                <View style={headerstyles.container}>
                   <NotificationModal/>
                   <DropdownButton/>
                 </View>
@@ -97,22 +89,10 @@ const styles = StyleSheet.create({
 });
 
 const headerstyles = StyleSheet.create({
-  leftContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginLeft: 4,
-  },
-  rightContainer: {
+  container: {
     flexDirection: 'row',
     alignItems: 'center',
     marginRight: 4,
-  },
-  titleText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
-    fontFamily: 'Poppins-Bold',
-    marginLeft: 12,
   },
   buttonContainer: {
     marginHorizontal: 2,

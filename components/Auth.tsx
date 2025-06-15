@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { Alert, StyleSheet, View, AppState, Text, TouchableOpacity } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { Button, Input } from '@rneui/themed'
-import AnimatedOkeyTiles from '../components/AnimatedOkeyTiles'
 
 // Tells Supabase Auth to continuously refresh the session automatically if
 // the app is in the foreground. When this is added, you will continue to receive
@@ -50,20 +49,16 @@ export default function Auth() {
     })
 
     if (error) Alert.alert(error.message)
-    if (!session) Alert.alert('Please check your inbox for email verification!')
     setLoading(false)
   }
 
   return (
     <View style={styles.container}>
-      {/* Animated Background Tiles */}
-      <AnimatedOkeyTiles />
-      
       <View style={styles.title}>
         <Text style={styles.titleText}>Acil Okey</Text>
       </View>
       <View style={styles.slogan}>
-        <Text style={styles.sloganText}>Find New Friends to Play With</Text>
+        <Text style={styles.sloganText}>Find New Friends to Play With  </Text>
       </View>
       <View style={[styles.loginContainer, { flex: isLogin ? 0.54 : 0.68 }]}>
         <View style={styles.login_register_switch}>
@@ -203,6 +198,8 @@ const styles = StyleSheet.create({
   password_control:{
 
   },
+
+
   switchContainer: {
     flexDirection: 'row',
     alignSelf: 'center',
