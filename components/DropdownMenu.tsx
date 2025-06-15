@@ -72,15 +72,12 @@ export default function CustomDropdownExample() {
         <MenuItem onPress={handleSignOut}>
           <Text style={styles.menuItemText}>Log Out</Text>
         </MenuItem>
+        <MenuDivider />
         <MenuItem onPress={() => {
           hideMenu();
           setIsUserProfileVisible(true);
         }}>
           <Text style={styles.menuItemText}>Profile</Text>
-        </MenuItem>
-        <MenuDivider />
-        <MenuItem onPress={() => handleOptionPress('Option C')}>
-          <Text style={styles.menuItemText}>Option C</Text>
         </MenuItem>
       </Menu>
 

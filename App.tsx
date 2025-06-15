@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import DropdownButton from './components/DropdownMenu';
 import NotificationModal from './components/NotificationModal';
 import UserProfileModal from './components/UserProfileModal';
+import WigglingOkeyTile from './components/WigglingOkeyTile';
 
 type RootStackParamList = {
   MainApp: undefined;
@@ -123,6 +124,11 @@ export default function App() {
                 fontWeight: 'bold',
                 fontFamily: 'Poppins-Bold',
               },
+              headerLeft: () => (
+                <View style={{ marginRight: 8 }}>
+                  <WigglingOkeyTile size="small" value={1} />
+                </View>
+              ),
               headerRight: () => (
                 <View style={headerstyles.container}>
                   <NotificationModal />

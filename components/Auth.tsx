@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Alert, StyleSheet, View, AppState, Text, TouchableOpacity } from 'react-native'
 import { supabase } from '../lib/supabase'
 import { Button, Input } from '@rneui/themed'
+import AnimatedOkeyTiles from './AnimatedOkeyTiles';
 
 // Tells Supabase Auth to continuously refresh the session automatically if
 // the app is in the foreground. When this is added, you will continue to receive
@@ -82,6 +83,7 @@ export default function Auth({ onRegisterSuccess }: AuthProps) {
 
   return (
     <View style={styles.container}>
+      <AnimatedOkeyTiles/>
       <View style={styles.title}>
         <Text style={styles.titleText}>Acil Okey</Text>
       </View>
