@@ -15,7 +15,12 @@ AppState.addEventListener('change', (state) => {
   }
 })
 
-export default function Auth() {
+// Props interface'ini ekleyelim
+interface AuthProps {
+  onRegisterSuccess: () => void;
+}
+
+export default function Auth({ onRegisterSuccess }: AuthProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -54,6 +59,7 @@ export default function Auth() {
       return
     }
 
+    // Yeni kullanıcı kaydı yapıldığında isNewUser'ı TRUE olarak ayarla
     if (session?.user) {
       const { error: profileError } = await supabase
         .from('users')
@@ -65,6 +71,9 @@ export default function Auth() {
 
       if (profileError) {
         console.error('Error setting isNewUser:', profileError)
+      } else {
+        // Register başarılı olduğunda callback'i çağır
+        onRegisterSuccess();
       }
     }
 

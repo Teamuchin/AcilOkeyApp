@@ -27,32 +27,48 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
+  // Register başarılı olduğunda çağrılacak fonksiyon
+  const handleRegisterSuccess = () => {
+    setShowProfileModal(true);
+  };
+
   useEffect(() => {
     setLoading(true);
     
+    // İlk session kontrolü
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      // Session varsa isNewUser kontrolü yap
       if (session?.user) {
+        // Session varsa hemen isNewUser kontrolü yap
         checkIsNewUser(session.user.id);
       }
+      setLoading(false);
     });
 
+    // Auth state değişikliklerini dinle
     const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       
       if (_event === 'SIGNED_IN' && session) {
         try {
+          // Online status güncelle
           await supabase
             .from('users')
-            .update({
-              online_status: true,
-            })
+            .update({ online_status: true })
             .eq('id', session.user.id);
-          // Giriş yapıldığında isNewUser kontrolü yap
-          checkIsNewUser(session.user.id);
+            
+          // Hemen isNewUser kontrolü yap
+          const { data, error } = await supabase
+            .from('users')
+            .select('isNewUser')
+            .eq('id', session.user.id)
+            .single();
+
+          if (!error && data?.isNewUser) {
+            setShowProfileModal(true);
+          }
         } catch (error) {
-          console.error('Error updating online status:', error);
+          console.error('Error:', error);
         }
       }
       
@@ -64,7 +80,7 @@ export default function App() {
     };
   }, []);
 
-  // isNewUser kontrolü için yeni fonksiyon
+  // isNewUser kontrolü için fonksiyon
   const checkIsNewUser = async (userId: string) => {
     try {
       const { data, error } = await supabase
@@ -73,10 +89,7 @@ export default function App() {
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
-
-      // Sadece isNewUser true ise modal'ı göster
-      if (data?.isNewUser) {
+      if (!error && data?.isNewUser) {
         setShowProfileModal(true);
       }
     } catch (error) {
@@ -120,11 +133,21 @@ export default function App() {
             }}
           />
         ) : (
-          <Stack.Screen name="Auth" component={Auth} options={{ headerShown: false }} />
+          <Stack.Screen 
+            name="Auth" 
+            options={{ headerShown: false }}
+          >
+            {(props) => (
+              <Auth 
+                {...props} 
+                onRegisterSuccess={handleRegisterSuccess}
+              />
+            )}
+          </Stack.Screen>
         )}
       </Stack.Navigator>
 
-      {/* UserProfileModal'ı sadece isNewUser true ise göster */}
+      {/* Modal'ı her zaman göster, session ve showProfileModal true ise */}
       {session && session.user && showProfileModal && (
         <UserProfileModal
           visible={showProfileModal}
