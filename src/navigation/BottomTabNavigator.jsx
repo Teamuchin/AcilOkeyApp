@@ -1,10 +1,11 @@
 // src/navigation/BottomTabNavigator.js
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { TouchableOpacity, Platform, Vibration, View, Text, StyleSheet } from 'react-native';
+import { supabase } from '../../lib/supabase';
 
 // Import your screen components
 import SearchScreen from '../screens/SearchScreen';
@@ -29,25 +30,68 @@ const headerStyles = StyleSheet.create({
     marginRight: 10,
   },
   titleContainer: {
+    flexDirection: 'row', // Added to arrange title and status dot horizontally
+    alignItems: 'center', // Added to align items vertically
     flex: 1,
     paddingVertical: 5,
     paddingHorizontal: 10,
-    // justifyContent: 'flex-start', // Bu satırı kaldırın veya comment out yapın
-    // alignSelf: 'flex-start', // Bu satırı da kaldırın veya comment out yapın
   },
   titleText: {
     fontSize: 20,
     fontWeight: 'bold',
-    textAlign: 'left', // Username'i sağa hizalar
+    textAlign: 'left',
+    marginRight: 8, // Add some space between the username and the status dot
   },
   reportButton: { // Yeni stil: Raporlama butonu için
     padding: 5,
     marginLeft: 10, // Solunda boşluk bırakır
+  },
+  statusDot: { // New style for the status dot
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   }
 });
 
 function CustomChatHeader({ navigation, route, options, back }) {
+  const [onlineStatus, setOnlineStatus] = useState(route.params?.online_status || false);
   const username = route.params?.username || 'Chat';
+
+  useEffect(() => {
+    // Kullanıcının online durumunu kontrol et
+    const checkOnlineStatus = async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('online_status')
+        .eq('username', username)
+        .single();
+      
+      if (data) {
+        setOnlineStatus(data.online_status);
+      }
+    };
+
+    // İlk yüklemede kontrol et
+    checkOnlineStatus();
+
+    // Gerçek zamanlı güncellemeleri dinle
+    const subscription = supabase
+      .channel('online_status_changes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'users',
+        filter: `username=eq.${username}`
+      }, (payload) => {
+        console.log('Online status changed:', payload);
+        setOnlineStatus(payload.new.online_status);
+      })
+      .subscribe();
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [username]);
 
   return (
     <View style={headerStyles.headerContainer}>
@@ -61,6 +105,7 @@ function CustomChatHeader({ navigation, route, options, back }) {
       )}
       <View style={headerStyles.titleContainer}>
         <Text style={headerStyles.titleText}>{username}</Text>
+        <View style={[headerStyles.statusDot, { backgroundColor: onlineStatus ? '#34C759' : '#8E8E93' }]} />
       </View>
       {/* Yeni: Raporlama butonu */}
       <TouchableOpacity
