@@ -380,14 +380,13 @@ export default function SearchScreen() {
   );
 
   const renderPlayerItem = (user: UserData) => {
-    // No longer using ListItem.Swipeable for players, direct ListItem
     return (
       <ListItem
         key={user.id}
         bottomDivider
         onPress={() => {
-          setSelectedUser(user); // Set the user data for the modal
-          setShowProfileModal(true); // Open the modal
+          setSelectedUser(user);
+          setShowProfileModal(true);
         }}
       >
         <Avatar
@@ -406,9 +405,7 @@ export default function SearchScreen() {
             )}
             {user.location && <Text> &middot; {user.location}</Text>}
           </ListItem.Subtitle>
-          {user.bio_text && <Text style={styles.playerBio}>{user.bio_text}</Text>}
         </ListItem.Content>
-        {/* --- Friendship Buttons (Always visible, NOT in swipeable) --- */}
         <View style={styles.playerActionButtonsContainer}>
           {user.id === currentUserId ? (
             <Text style={styles.selfText}>You</Text>
@@ -441,7 +438,7 @@ export default function SearchScreen() {
               buttonStyle={styles.friendsButton}
               titleStyle={styles.friendshipButtonTitle}
             />
-          ) : ( // 'not_friends' or 'rejected'
+          ) : (
             <Button
               title="Add Friend"
               onPress={() => sendFriendRequest(user.id, user.username)}
@@ -768,7 +765,7 @@ const styles = StyleSheet.create({
     marginLeft: 10, // Adjust spacing from content
   },
   joinButton: {
-    backgroundColor: 'green', // Green background for Join
+    backgroundColor: '#ea2e3c', // Changed from '#2196F3' to '#ea2e3c' to match Players text color
     borderRadius: 5,
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -792,7 +789,7 @@ const styles = StyleSheet.create({
     gap: 5, // Space between Accept and Reject
   },
   addFriendButton: {
-    backgroundColor: '#007bff', // Blue for Add Friend
+    backgroundColor: '#2196F3', // Changed from '#007bff' to '#2196F3'
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 5,

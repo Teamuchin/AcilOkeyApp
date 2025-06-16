@@ -10,6 +10,8 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  Keyboard,
+  KeyboardEvent,
 } from 'react-native';
 import { Button, Icon } from '@rneui/themed';
 import { supabase } from '../../lib/supabase';
@@ -39,6 +41,7 @@ export default function MessageScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   
   // Use a ref to hold receiver profile to avoid it being a dependency in the main effect
   const receiverProfileRef = useRef<UserProfile | null>(null);
@@ -62,6 +65,31 @@ export default function MessageScreen() {
 
     return () => {
       subscription?.unsubscribe();
+    };
+  }, []);
+
+  // Klavye olaylarını dinle
+  useEffect(() => {
+    const keyboardWillShow = (e: KeyboardEvent) => {
+      setKeyboardHeight(e.endCoordinates.height);
+    };
+
+    const keyboardWillHide = () => {
+      setKeyboardHeight(0);
+    };
+
+    const showSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      keyboardWillShow
+    );
+    const hideSubscription = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      keyboardWillHide
+    );
+
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
     };
   }, []);
 
@@ -234,48 +262,51 @@ export default function MessageScreen() {
   return (
     <KeyboardAvoidingView
       style={styles.keyboardAvoidingContainer}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      enabled
     >
-      <ScrollView
-        ref={scrollViewRef}
-        style={styles.messagesContainer}
-        contentContainerStyle={styles.messagesContentContainer}
-      >
-        {messages.map((msg) => (
-          <View
-            key={msg.id}
-            style={[
-              styles.messageBubble,
-              msg.sender_id === currentUserId ? styles.myMessage : styles.theirMessage,
-            ]}
-          >
-            {msg.sender_id !== currentUserId && (
-                <Text style={styles.senderName}>{receiverProfileRef.current?.username || 'User'}</Text>
-            )}
-            <Text style={styles.messageContent}>{msg.content}</Text>
-            <Text style={styles.messageTimestamp}>
-              {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </Text>
-          </View>
-        ))}
-      </ScrollView>
+      <View style={[styles.container, { paddingBottom: keyboardHeight }]}>
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.messagesContainer}
+          contentContainerStyle={styles.messagesContentContainer}
+        >
+          {messages.map((msg) => (
+            <View
+              key={msg.id}
+              style={[
+                styles.messageBubble,
+                msg.sender_id === currentUserId ? styles.myMessage : styles.theirMessage,
+              ]}
+            >
+              {msg.sender_id !== currentUserId && (
+                  <Text style={styles.senderName}>{receiverProfileRef.current?.username || 'User'}</Text>
+              )}
+              <Text style={styles.messageContent}>{msg.content}</Text>
+              <Text style={styles.messageTimestamp}>
+                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              </Text>
+            </View>
+          ))}
+        </ScrollView>
 
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.textInput}
-          value={newMessage}
-          onChangeText={setNewMessage}
-          placeholder="Type your message..."
-          multiline
-        />
-        <Button
-          icon={<Icon name="send" type="material" color="white" />}
-          buttonStyle={styles.sendButton}
-          onPress={handleSendMessage}
-          disabled={sending || !newMessage.trim()}
-          loading={sending}
-        />
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.textInput}
+            value={newMessage}
+            onChangeText={setNewMessage}
+            placeholder="Type your message..."
+            multiline
+          />
+          <Button
+            icon={<Icon name="send" type="material" color="white" />}
+            buttonStyle={styles.sendButton}
+            onPress={handleSendMessage}
+            disabled={sending || !newMessage.trim()}
+            loading={sending}
+          />
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -285,7 +316,6 @@ export default function MessageScreen() {
 const styles = StyleSheet.create({
     keyboardAvoidingContainer: {
         flex: 1,
-        backgroundColor: '#f0f2f5',
       },
       loadingContainer: {
         flex: 1,
@@ -360,5 +390,9 @@ const styles = StyleSheet.create({
         height: 50,
         justifyContent: 'center',
         alignItems: 'center',
+      },
+      container: {
+        flex: 1,
+        backgroundColor: '#f0f2f5',
       },
 });

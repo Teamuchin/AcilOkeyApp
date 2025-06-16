@@ -214,18 +214,18 @@ export default function MyGamesScreen() {
         {(
           <>
             <Button
-              title="Close Game"
-              type="solid"
-              buttonStyle={[styles.leaveGameBtn, { backgroundColor: '#FFD700' }]}
-              titleStyle={{ color: '#333' }}
-              onPress={() => handleCloseGame(item.id, item.title)}
-            />
-            <Button
               title="Leave Game"
               type="clear"
-              buttonStyle={styles.leaveGameBtn}
+              buttonStyle={[styles.leaveGameBtn, { borderColor: '#ea2e3c', borderWidth: 1, borderRadius: 5 }]}
               titleStyle={{ color: '#ea2e3c' }}
               onPress={() => handleLeaveGame(item.id, item.title)}
+            />
+            <Button
+              title="Close Game"
+              type="solid"
+              buttonStyle={[styles.leaveGameBtn, { backgroundColor: '#ea2e3c', borderRadius: 5 }]}
+              titleStyle={{ color: '#fff' }}
+              onPress={() => handleCloseGame(item.id, item.title)}
             />
           </>
         )}

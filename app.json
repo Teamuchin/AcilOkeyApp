@@ -4,7 +4,7 @@
     "slug": "AcilOkeyApp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/app-icon.png",
+    "icon": "./assets/acil_okey_android_ikon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -17,7 +17,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/app-icon.png",
+        "foregroundImage": "./assets/acil_okey_android_ikon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
