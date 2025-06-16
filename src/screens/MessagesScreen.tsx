@@ -12,6 +12,12 @@ import {
   ActivityIndicator,
   Keyboard,
   KeyboardEvent,
+  RefreshControl,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  Animated,
+  PanResponder,
+  Dimensions,
 } from 'react-native';
 import { Button, Icon } from '@rneui/themed';
 import { supabase } from '../../lib/supabase';
@@ -42,14 +48,52 @@ export default function MessageScreen() {
   const [sending, setSending] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+  const pullDistance = useRef(new Animated.Value(0)).current;
+  const scrollViewRef = useRef<ScrollView>(null);
+  const lastContentOffset = useRef(0);
+  const isScrolling = useRef(false);
   
   // Use a ref to hold receiver profile to avoid it being a dependency in the main effect
   const receiverProfileRef = useRef<UserProfile | null>(null);
 
-  const scrollViewRef = useRef<ScrollView>(null);
   const navigation = useNavigation();
   const route = useRoute();
   const { receiverId } = route.params as { receiverId: string };
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => isAtBottom,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        // Only respond to vertical movements when at bottom and not scrolling
+        return isAtBottom && !isScrolling.current && Math.abs(gestureState.dy) > 0;
+      },
+      onPanResponderGrant: () => {
+        // Reset the pull distance when starting a new gesture
+        pullDistance.setValue(0);
+      },
+      onPanResponderMove: (_, gestureState) => {
+        if (isAtBottom && gestureState.dy > 0) {
+          // Only allow pulling down, with some resistance
+          const newValue = gestureState.dy * 0.5;
+          pullDistance.setValue(newValue);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 50) { // Lower threshold to trigger refresh
+          onRefresh();
+        }
+        // Animate back to original position
+        Animated.spring(pullDistance, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 40,
+          friction: 7,
+        }).start();
+      },
+    })
+  ).current;
 
   // Effect 1: Get the current user
   useEffect(() => {
@@ -218,6 +262,35 @@ export default function MessageScreen() {
     }
   }, [messages]);
 
+  const fetchMessages = async () => {
+    if (!currentUserId || !receiverId) return;
+
+    try {
+      const { data: messagesData, error: messagesError } = await supabase
+        .from('messages')
+        .select('*, sender_profile:users!messages_sender_id_fkey1(username)')
+        .or(`and(sender_id.eq.${currentUserId},receiver_id.eq.${receiverId}),and(sender_id.eq.${receiverId},receiver_id.eq.${currentUserId})`)
+        .order('created_at', { ascending: true });
+
+      if (messagesError) throw messagesError;
+
+      const formattedMessages = messagesData.map((msg: any) => ({
+        ...msg,
+        sender_username: msg.sender_id === currentUserId ? 'Me' : (msg.sender_profile?.username || 'Unknown'),
+      }));
+      setMessages(formattedMessages);
+    } catch (error: any) {
+      console.error('Error fetching messages:', error.message);
+      Alert.alert('Error', 'Failed to refresh messages.');
+    }
+  };
+
+  const onRefresh = async () => {
+    if (!isAtBottom) return; // Only refresh if we're at the bottom
+    setRefreshing(true);
+    await fetchMessages();
+    setRefreshing(false);
+  };
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !currentUserId || !receiverId) return;
@@ -249,6 +322,22 @@ export default function MessageScreen() {
     }
   };
 
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const paddingToBottom = 20;
+    const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+    setIsAtBottom(isCloseToBottom);
+    
+    // Track scrolling state
+    isScrolling.current = true;
+    lastContentOffset.current = contentOffset.y;
+    
+    // Reset scrolling state after a short delay
+    setTimeout(() => {
+      isScrolling.current = false;
+    }, 150);
+  };
+
   // --- JSX Rendering (no major changes) ---
   if (loading) {
     return (
@@ -270,25 +359,42 @@ export default function MessageScreen() {
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
-          contentContainerStyle={styles.messagesContentContainer}
+          contentContainerStyle={[
+            styles.messagesContentContainer,
+            { minHeight: '100%' }
+          ]}
+          onScroll={handleScroll}
+          scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              enabled={isAtBottom}
+              colors={['#2196F3']}
+              tintColor="#2196F3"
+              progressViewOffset={20}
+            />
+          }
         >
-          {messages.map((msg) => (
-            <View
-              key={msg.id}
-              style={[
-                styles.messageBubble,
-                msg.sender_id === currentUserId ? styles.myMessage : styles.theirMessage,
-              ]}
-            >
-              {msg.sender_id !== currentUserId && (
-                  <Text style={styles.senderName}>{receiverProfileRef.current?.username || 'User'}</Text>
-              )}
-              <Text style={styles.messageContent}>{msg.content}</Text>
-              <Text style={styles.messageTimestamp}>
-                {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </Text>
-            </View>
-          ))}
+          <View style={styles.messagesWrapper}>
+            {messages.map((msg) => (
+              <View
+                key={msg.id}
+                style={[
+                  styles.messageBubble,
+                  msg.sender_id === currentUserId ? styles.myMessage : styles.theirMessage,
+                ]}
+              >
+                {msg.sender_id !== currentUserId && (
+                    <Text style={styles.senderName}>{receiverProfileRef.current?.username || 'User'}</Text>
+                )}
+                <Text style={styles.messageContent}>{msg.content}</Text>
+                <Text style={styles.messageTimestamp}>
+                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </Text>
+              </View>
+            ))}
+          </View>
         </ScrollView>
 
         <View style={styles.inputContainer}>
@@ -328,7 +434,6 @@ const styles = StyleSheet.create({
       },
       messagesContentContainer: {
         flexGrow: 1,
-        justifyContent: 'flex-end',
       },
       messageBubble: {
         padding: 10,
@@ -394,5 +499,11 @@ const styles = StyleSheet.create({
       container: {
         flex: 1,
         backgroundColor: '#f0f2f5',
+      },
+      messagesWrapper: {
+        flex: 1,
+        justifyContent: 'flex-end',
+        minHeight: '100%',
+        paddingBottom: 10,
       },
 });

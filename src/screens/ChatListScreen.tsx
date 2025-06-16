@@ -1,6 +1,6 @@
 // src/screens/ChatListScreen.tsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Alert, RefreshControl } from 'react-native';
 import { Avatar, ListItem } from '@rneui/themed';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -25,6 +25,7 @@ export default function ChatListScreen() {
   const [users, setUsers] = useState<UserContact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const navigation = useNavigation<NavigationProp>();
 
   // --- Change 1: currentUserId should be state, and initialized to null ---
@@ -100,6 +101,43 @@ export default function ChatListScreen() {
     fetchUsers();
   }, [currentUserId]); // This effect now correctly depends on the `currentUserId` state
 
+  const onRefresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      if (!currentUserId) {
+        setError("Please sign in to view your chats.");
+        return;
+      }
+
+      // Fetch only accepted friends to show as chat partners
+      const { data: friendsData, error: friendsError } = await supabase
+        .from('Friendships')
+        .select('user_id_1, user_id_2')
+        .or(`user_id_1.eq.${currentUserId},user_id_2.eq.${currentUserId}`)
+        .eq('status', 'accepted');
+
+      if (friendsError) throw friendsError;
+
+      // Get the friend IDs (the ones that aren't the current user)
+      const friendIds = friendsData.map(friendship => 
+        friendship.user_id_1 === currentUserId ? friendship.user_id_2 : friendship.user_id_1
+      );
+
+      // Fetch the user details for the friends
+      const { data, error: fetchError } = await supabase
+        .from('users')
+        .select('id, username, profile_picture_url')
+        .in('id', friendIds);
+
+      if (fetchError) throw fetchError;
+      setUsers(data as UserContact[]);
+    } catch (err: any) {
+      console.error("Error refreshing users:", err.message);
+      setError("Failed to refresh chat contacts.");
+    } finally {
+      setRefreshing(false);
+    }
+  }, [currentUserId]);
 
   const renderItem = ({ item }: { item: UserContact }) => (
     <ListItem bottomDivider onPress={() => navigation.navigate('Chat', { receiverId: item.id, username: item.username || 'Chat Partner' })}>
@@ -139,6 +177,14 @@ export default function ChatListScreen() {
         data={users}
         renderItem={renderItem}
         keyExtractor={(item) => item.id}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={['#2196F3']} // Android
+            tintColor="#2196F3" // iOS
+          />
+        }
         ListEmptyComponent={
           <Text style={styles.emptyListText}>No users found. Try connecting with others!</Text>
         }
