@@ -2,7 +2,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { supabase } from '../../lib/supabase'
-import { Button, Icon } from '@rneui/themed'
+import { Button } from '@rneui/base'
+import { Icon } from '@rneui/themed'
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 // Import new components
